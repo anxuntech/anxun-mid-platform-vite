@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
 import { useEffect } from 'react'
+import { useRef } from 'react'
 import {
   AlertTriangle,
   BarChart3,
@@ -83,6 +84,7 @@ type DimensionScore = { dimensionId: string; dimensionName: string; fullScore: n
 type ScoreSnapshot = { id: string; schemeId: string; enterpriseId: string; enterpriseName: string; month: string; generatedAt: string; locked: boolean; totalScore: number; levelName: string; levelColor: Tone; metrics: Record<string, number | string>; dimensionScores: DimensionScore[]; deductionDetails: DeductionDetail[] }
 type TaskExecutionRecord = { id: string; time: string; actor: string; action: string; note: string }
 type TaskEvidenceFile = { id: string; title: string; category: '现场图片' | '过程记录' | '整改证明'; time: string; description: string }
+type UploadedTaskEvidence = { id: string; title: string; time: string; previewUrl: string; description: string }
 type TaskCenterItem = {
   taskId: string
   taskCode: string
@@ -413,9 +415,11 @@ function App() {
   const [taskTimeFilter, setTaskTimeFilter] = useState<TaskTimeFilter>('all')
   const [taskAssigneeFilter, setTaskAssigneeFilter] = useState('all')
   const [taskQuickFilter, setTaskQuickFilter] = useState<TaskQuickFilter>('all')
+  const [taskUploadedEvidence, setTaskUploadedEvidence] = useState<Record<string, UploadedTaskEvidence[]>>({})
   const [dashboardEnterpriseFilter, setDashboardEnterpriseFilter] = useState('all')
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState('all')
   const [dashboardPriorityFilter, setDashboardPriorityFilter] = useState<'all' | TaskPriority>('all')
+  const evidenceInputRef = useRef<HTMLInputElement | null>(null)
   const dashboardToday = '2026-03-21'
   const dashboardMonth = '2026-03'
   const weekStart = '2026-03-15'
@@ -708,6 +712,7 @@ function App() {
     .map(item => ({ ...item, enterpriseName: enterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))
   const taskScopeDescription = taskListScope === 'today' ? '当前展示今天需要优先调度和执行的任务。' : taskListScope === 'weekCompleted' ? '当前展示本周已闭环任务，便于复盘交付结果。' : taskListScope === 'monthly' ? '当前展示本月任务推进情况，便于统筹交付。' : '当前展示全部任务，可按企业、状态、执行人等条件调度。'
   const activeHazardEnterpriseName = hazardEnterpriseId ? enterprises.find(item => item.id === hazardEnterpriseId)?.name || '' : ''
+  const selectedTaskUploads = selectedTask ? taskUploadedEvidence[selectedTask.taskId] || [] : []
 
   const applyRouteState = (route: AppRouteState) => {
     setPage(route.page)
@@ -800,6 +805,55 @@ function App() {
       hazardEnterpriseId: task.enterpriseId,
       hazardListScope: task.status === '待复查' ? 'pendingReview' : task.status === '已超期' ? 'overdueOpen' : 'all',
     })
+  }
+
+  const openEvidencePicker = () => {
+    evidenceInputRef.current?.click()
+  }
+
+  const handleTaskEvidenceUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    if (!selectedTask || !files.length) return
+    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+    if (!imageFiles.length) {
+      setMessage('请选择图片文件后再上传')
+      event.target.value = ''
+      return
+    }
+
+    const uploadedRows = await Promise.all(
+      imageFiles.map(
+        file =>
+          new Promise<UploadedTaskEvidence>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () =>
+              resolve({
+                id: `${selectedTask.taskId}-upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                title: file.name.replace(/\.[^.]+$/, ''),
+                time: `${dashboardToday} 18:00`,
+                previewUrl: String(reader.result || ''),
+                description: `由${selectedTask.assignee}补录上传，已绑定到当前任务。`,
+              })
+            reader.onerror = () => reject(new Error('read-failed'))
+            reader.readAsDataURL(file)
+          }),
+      ),
+    )
+
+    setTaskUploadedEvidence(prev => ({
+      ...prev,
+      [selectedTask.taskId]: [...(prev[selectedTask.taskId] || []), ...uploadedRows],
+    }))
+    setMessage(`已为${selectedTask.taskName}补录 ${uploadedRows.length} 张现场图片`)
+    event.target.value = ''
+  }
+
+  const removeTaskEvidence = (taskId: string, evidenceId: string) => {
+    setTaskUploadedEvidence(prev => ({
+      ...prev,
+      [taskId]: (prev[taskId] || []).filter(item => item.id !== evidenceId),
+    }))
+    setMessage('已删除该现场图片')
   }
 
   const overviewCards = [
@@ -1085,7 +1139,15 @@ function App() {
               </div>
 
               <div className="surface-outline">
-                <div className="section-subtitle">现场图片 / 证据</div>
+                <div className="task-evidence-head">
+                  <div className="section-subtitle">现场图片 / 证据</div>
+                  <div className="inline-row">
+                    <input ref={evidenceInputRef} className="hidden-file-input" type="file" accept="image/*" multiple onChange={handleTaskEvidenceUpload} />
+                    <button className="btn btn-xs btn-dark" onClick={openEvidencePicker}>上传现场图片</button>
+                    <button className="btn btn-xs btn-light" onClick={openEvidencePicker}>重新上传</button>
+                  </div>
+                </div>
+                {selectedTaskUploads.length > 0 && <div className="small muted">当前任务已补录 {selectedTaskUploads.length} 张现场图片，关闭抽屉后再次打开仍可继续查看。</div>}
                 <div className="task-evidence-grid">
                   {selectedTask.evidenceFiles.map(item => (
                     <div key={item.id} className="task-evidence-card">
@@ -1094,6 +1156,25 @@ function App() {
                         <div className="title-sm">{item.title}</div>
                         <div className="small muted">{item.time}</div>
                         <div className="body">{item.description}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {selectedTaskUploads.map(item => (
+                    <div key={item.id} className="task-evidence-card">
+                      <img className="task-evidence-image" src={item.previewUrl} alt={item.title} />
+                      <div className="stack-sm">
+                        <div className="list-card-head">
+                          <div>
+                            <div className="title-sm">{item.title}</div>
+                            <div className="small muted">{item.time}</div>
+                          </div>
+                          <Badge tone="emerald">已补录</Badge>
+                        </div>
+                        <div className="body">{item.description}</div>
+                        <div className="button-row">
+                          <button className="btn btn-xs btn-light" onClick={openEvidencePicker}>重传</button>
+                          <button className="btn btn-xs btn-light" onClick={() => removeTaskEvidence(selectedTask.taskId, item.id)}>删除</button>
+                        </div>
                       </div>
                     </div>
                   ))}
