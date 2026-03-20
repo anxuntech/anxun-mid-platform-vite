@@ -43,11 +43,29 @@ type TaskStage = '待指派' | '待接单' | '执行中' | '待验收' | '已完
 type TaskPriority = '高' | '中' | '低'
 type TaskListScope = 'all' | 'today' | 'weekCompleted' | 'monthly'
 type HazardListScope = 'all' | 'pendingReview' | 'overdueOpen'
+type UnifiedTaskStatus = '待执行' | '执行中' | '已发现隐患' | '待整改' | '待复查' | '已闭环' | '已超期'
+type TaskTimeFilter = 'all' | 'last7days' | 'thisMonth' | 'next7days'
+type TaskQuickFilter = 'all' | 'overdue' | 'pendingReview'
 type Tone = 'red' | 'amber' | 'emerald' | 'blue' | 'slate' | 'violet' | 'cyan'
 type StatPeriod = '按月' | '按季度'
 type CalcMethod = 'threshold' | 'range' | 'deduction' | 'weight'
 type SchemeStatus = '启用' | '草稿'
-type AppRouteState = { __app?: 'safe-platform'; page: PageKey; enterpriseId?: string; taskId?: string; taskListScope?: TaskListScope; hazardListScope?: HazardListScope }
+type AppRouteState = {
+  __app?: 'safe-platform'
+  page: PageKey
+  enterpriseId?: string
+  taskId?: string
+  taskListScope?: TaskListScope
+  hazardListScope?: HazardListScope
+  hazardEnterpriseId?: string
+  taskEnterpriseFilter?: string
+  taskTypeFilter?: string
+  taskStatusFilter?: UnifiedTaskStatus | 'all'
+  taskPriorityFilter?: TaskPriority | 'all'
+  taskTimeFilter?: TaskTimeFilter
+  taskAssigneeFilter?: string
+  taskQuickFilter?: TaskQuickFilter
+}
 
 type Enterprise = { id: string; name: string; industry: string; area: string; leader: string; phone: string; score: number; level: Level; risk: Risk; tags: string[]; deviceCount: number }
 type Hazard = { id: string; enterpriseId: string; title: string; level: Risk; status: HazardStatus; source: string; foundAt: string; deadline: string }
@@ -63,6 +81,33 @@ type ScoreLevelRange = { id: string; schemeId: string; name: string; min: number
 type DeductionDetail = { id: string; ruleId: string; ruleName: string; dimensionId: string; dimensionName: string; metricCode: string; dataSourceField: string; sourceTable: string; sourceApiField: string; calcMethod: CalcMethod; actualValue: string; maxScore: number; score: number; deducted: number; reason: string }
 type DimensionScore = { dimensionId: string; dimensionName: string; fullScore: number; score: number; deductions: number }
 type ScoreSnapshot = { id: string; schemeId: string; enterpriseId: string; enterpriseName: string; month: string; generatedAt: string; locked: boolean; totalScore: number; levelName: string; levelColor: Tone; metrics: Record<string, number | string>; dimensionScores: DimensionScore[]; deductionDetails: DeductionDetail[] }
+type TaskExecutionRecord = { id: string; time: string; actor: string; action: string; note: string }
+type TaskEvidenceFile = { id: string; title: string; category: '现场图片' | '过程记录' | '整改证明'; time: string; description: string }
+type TaskCenterItem = {
+  taskId: string
+  taskCode: string
+  taskName: string
+  enterpriseId: string
+  enterpriseName: string
+  taskType: string
+  source: string
+  assignTime: string
+  dueTime: string
+  assignee: string
+  status: UnifiedTaskStatus
+  priority: TaskPriority
+  taskDescription: string
+  currentProgress: string
+  progressPercent: number
+  executionRecords: TaskExecutionRecord[]
+  evidenceFiles: TaskEvidenceFile[]
+  hazardFound: boolean
+  hazardCount: number
+  rectificationStatus: string
+  reviewStatus: string
+  relatedHazardIds: string[]
+  latestAction: string
+}
 
 const enterprises: Enterprise[] = [
   { id: 'ent-001', name: '邢台荣泰机械制造有限公司', industry: '机械制造', area: '开发区', leader: '张总', phone: '13800001111', score: 72, level: 'C', risk: '高', tags: ['焊接', '配电室', '仓储'], deviceCount: 18 },
@@ -210,6 +255,23 @@ const round = (v: number) => Number(v.toFixed(2))
 const entType = (ent: Enterprise) => (ent.industry.includes('仓储') ? '仓储物流' : ent.industry.includes('新能源') ? '新能源制造' : '制造业')
 const bias = (m: string) => ({ '2026-01': -2, '2026-02': -1, '2026-03': 0, '2026-04': 1 }[m] ?? 0)
 const historyMarker = 'safe-platform'
+const defaultEnterpriseId = 'ent-002'
+const taskStatusOrder: UnifiedTaskStatus[] = ['待执行', '执行中', '已发现隐患', '待整改', '待复查', '已闭环', '已超期']
+const taskStatusTone: Record<UnifiedTaskStatus, Tone> = { 待执行: 'slate', 执行中: 'blue', 已发现隐患: 'amber', 待整改: 'amber', 待复查: 'violet', 已闭环: 'emerald', 已超期: 'red' }
+const surveyAssignTimeMap: Record<string, string> = {
+  'sur-001': '2026-03-14 09:20',
+  'sur-002': '2026-03-11 15:40',
+  'sur-003': '2026-03-15 10:10',
+  'sur-004': '2026-03-13 08:35',
+}
+const serviceAssignTimeMap: Record<string, string> = {
+  'sr-001': '2026-03-14 13:30',
+  'sr-002': '2026-03-15 10:15',
+  'sr-003': '2026-03-12 09:00',
+  'sr-004': '2026-03-16 08:50',
+}
+const taskTimeFilterLabels: Record<TaskTimeFilter, string> = { all: '全部时间', last7days: '近 7 天', thisMonth: '本月', next7days: '未来 7 天' }
+const taskQuickFilterLabels: Record<TaskQuickFilter, string> = { all: '全部任务', overdue: '只看超期', pendingReview: '只看待复查' }
 
 const buildRouteUrl = (route: AppRouteState) => {
   const params = new URLSearchParams()
@@ -219,6 +281,14 @@ const buildRouteUrl = (route: AppRouteState) => {
   if (route.taskId) params.set('taskId', route.taskId)
   if (route.taskListScope) params.set('taskListScope', route.taskListScope)
   if (route.hazardListScope) params.set('hazardListScope', route.hazardListScope)
+  if (route.hazardEnterpriseId) params.set('hazardEnterpriseId', route.hazardEnterpriseId)
+  if (route.taskEnterpriseFilter && route.taskEnterpriseFilter !== 'all') params.set('taskEnterpriseFilter', route.taskEnterpriseFilter)
+  if (route.taskTypeFilter && route.taskTypeFilter !== 'all') params.set('taskTypeFilter', route.taskTypeFilter)
+  if (route.taskStatusFilter && route.taskStatusFilter !== 'all') params.set('taskStatusFilter', route.taskStatusFilter)
+  if (route.taskPriorityFilter && route.taskPriorityFilter !== 'all') params.set('taskPriorityFilter', route.taskPriorityFilter)
+  if (route.taskTimeFilter && route.taskTimeFilter !== 'all') params.set('taskTimeFilter', route.taskTimeFilter)
+  if (route.taskAssigneeFilter && route.taskAssigneeFilter !== 'all') params.set('taskAssigneeFilter', route.taskAssigneeFilter)
+  if (route.taskQuickFilter && route.taskQuickFilter !== 'all') params.set('taskQuickFilter', route.taskQuickFilter)
   const query = params.toString()
   return query ? `${window.location.pathname}?${query}` : window.location.pathname
 }
@@ -235,6 +305,14 @@ const readRouteStateFromUrl = (): AppRouteState | null => {
     taskId: params.get('taskId') || undefined,
     taskListScope: (params.get('taskListScope') as TaskListScope | null) || undefined,
     hazardListScope: (params.get('hazardListScope') as HazardListScope | null) || undefined,
+    hazardEnterpriseId: params.get('hazardEnterpriseId') || undefined,
+    taskEnterpriseFilter: params.get('taskEnterpriseFilter') || undefined,
+    taskTypeFilter: params.get('taskTypeFilter') || undefined,
+    taskStatusFilter: (params.get('taskStatusFilter') as UnifiedTaskStatus | 'all' | null) || undefined,
+    taskPriorityFilter: (params.get('taskPriorityFilter') as TaskPriority | 'all' | null) || undefined,
+    taskTimeFilter: (params.get('taskTimeFilter') as TaskTimeFilter | null) || undefined,
+    taskAssigneeFilter: params.get('taskAssigneeFilter') || undefined,
+    taskQuickFilter: (params.get('taskQuickFilter') as TaskQuickFilter | null) || undefined,
   }
 }
 
@@ -309,11 +387,12 @@ const StatusBadge = ({ value }: { value: string }) => <Badge tone={value.include
 const DeviceBadge = ({ status }: { status: DeviceStatus }) => <Badge tone={status === '在线' ? 'emerald' : status === '离线' ? 'slate' : 'red'}>{status}</Badge>
 const PerspectiveBadge = ({ value }: { value: Perspective }) => <Badge tone={value === '企业' ? 'emerald' : value === '安全服务商' ? 'violet' : value === '保险平台' ? 'blue' : 'amber'}>{value}</Badge>
 const PriorityBadge = ({ value }: { value: TaskPriority }) => <Badge tone={value === '高' ? 'red' : value === '中' ? 'amber' : 'blue'}>{value}优先</Badge>
+const TaskStatusBadge = ({ value }: { value: UnifiedTaskStatus }) => <Badge tone={taskStatusTone[value]}>{value}</Badge>
 
 function App() {
   const [page, setPage] = useState<PageKey>('dashboard')
   const [perspective, setPerspective] = useState<Perspective>('安全服务商')
-  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState('ent-002')
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState(defaultEnterpriseId)
   const [selectedMonth, setSelectedMonth] = useState('2026-03')
   const [message, setMessage] = useState('')
   const [approvals] = useState(initialApprovals)
@@ -325,7 +404,15 @@ function App() {
   const [drawer, setDrawer] = useState<{ snapshotId: string; dimensionId?: string | null } | null>(null)
   const [taskListScope, setTaskListScope] = useState<TaskListScope>('all')
   const [hazardListScope, setHazardListScope] = useState<HazardListScope>('all')
+  const [hazardEnterpriseId, setHazardEnterpriseId] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState('')
+  const [taskEnterpriseFilter, setTaskEnterpriseFilter] = useState('all')
+  const [taskTypeFilter, setTaskTypeFilter] = useState('all')
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | UnifiedTaskStatus>('all')
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | TaskPriority>('all')
+  const [taskTimeFilter, setTaskTimeFilter] = useState<TaskTimeFilter>('all')
+  const [taskAssigneeFilter, setTaskAssigneeFilter] = useState('all')
+  const [taskQuickFilter, setTaskQuickFilter] = useState<TaskQuickFilter>('all')
   const [dashboardEnterpriseFilter, setDashboardEnterpriseFilter] = useState('all')
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState('all')
   const [dashboardPriorityFilter, setDashboardPriorityFilter] = useState<'all' | TaskPriority>('all')
@@ -357,6 +444,173 @@ function App() {
 
   const openHazardsByEnterprise = useMemo(() => Object.fromEntries(enterprises.map(ent => [ent.id, hazards.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环')])) as Record<string, Hazard[]>, [])
   const latestServiceDateByEnterprise = useMemo(() => Object.fromEntries(enterprises.map(ent => { const latest = initialServiceRecords.filter(item => item.enterpriseId === ent.id).sort((a, b) => b.date.localeCompare(a.date))[0]; return [ent.id, latest?.date || '暂无服务记录'] })) as Record<string, string>, [])
+  const latestProviderByEnterprise = useMemo(
+    () =>
+      Object.fromEntries(
+        enterprises.map(ent => {
+          const provider =
+            initialServiceRecords.find(item => item.enterpriseId === ent.id)?.provider ||
+            initialSurveyTasks.find(item => item.enterpriseId === ent.id)?.assignee ||
+            '安巡安全服务机构区域组'
+          return [ent.id, provider]
+        }),
+      ) as Record<string, string>,
+    [],
+  )
+
+  const taskCenterRows = useMemo(() => {
+    const surveyRows: TaskCenterItem[] = initialSurveyTasks.map((task, index) => {
+      const enterprise = enterprises.find(item => item.id === task.enterpriseId) || enterprises[0]
+      const relatedHazards = hazards.filter(item => item.enterpriseId === task.enterpriseId && item.status !== '已闭环')
+      const overdue = task.dueDate < dashboardToday && task.stage !== '已完成' && task.stage !== '待验收'
+      const hazardFound = relatedHazards.length > 0
+      const status: UnifiedTaskStatus =
+        overdue
+          ? '已超期'
+          : task.stage === '待指派' || task.stage === '待接单'
+            ? '待执行'
+            : task.stage === '执行中'
+              ? hazardFound ? '已发现隐患' : '执行中'
+              : task.stage === '待验收'
+                ? '待复查'
+                : hazardFound
+                  ? '待整改'
+                  : '已闭环'
+      const progressPercent = status === '待执行' ? 12 : status === '执行中' ? 46 : status === '已发现隐患' ? 62 : status === '待整改' ? 72 : status === '待复查' ? 86 : status === '已闭环' ? 100 : 38
+      return {
+        taskId: task.id,
+        taskCode: `RW-202603-${String(index + 1).padStart(3, '0')}`,
+        taskName: `${task.type}执行`,
+        enterpriseId: task.enterpriseId,
+        enterpriseName: task.enterpriseName,
+        taskType: task.type,
+        source: task.createdBy.includes('保险平台') ? '保险平台派发' : '服务商调度',
+        assignTime: surveyAssignTimeMap[task.id] || `${task.dueDate} 09:00`,
+        dueTime: task.dueDate,
+        assignee: task.assignee,
+        status,
+        priority: relatedHazards.some(item => item.deadline < dashboardToday) || enterprise.risk === '高' ? '高' : relatedHazards.length >= 2 || task.stage === '执行中' ? '中' : '低',
+        taskDescription: task.focus,
+        currentProgress: status === '待执行' ? '等待接单并安排现场计划。' : status === '执行中' ? '正在现场核查任务项和关键点位。' : status === '已发现隐患' ? `已识别 ${relatedHazards.length} 项隐患，待推动整改。` : status === '待整改' ? '企业正在按服务意见整改，等待补充证明。' : status === '待复查' ? '整改资料已回传，等待服务商复查。' : status === '已闭环' ? '任务已验收完成，证据已归档。' : '任务已超过计划时限，需尽快催办。',
+        progressPercent,
+        executionRecords: [
+          { id: `${task.id}-step-1`, time: surveyAssignTimeMap[task.id] || `${task.dueDate} 09:00`, actor: task.createdBy, action: '派发任务', note: `已将${task.type}派发给${task.assignee}` },
+          { id: `${task.id}-step-2`, time: `${task.dueDate} 10:30`, actor: task.assignee, action: status === '待执行' ? '等待接单' : '开始执行', note: status === '待执行' ? '已收到任务，待确认到场计划。' : `围绕“${task.focus}”展开现场核查。` },
+          { id: `${task.id}-step-3`, time: `${task.dueDate} 16:10`, actor: task.assignee, action: status === '待复查' ? '提交复查申请' : status === '已闭环' ? '提交结果回传' : hazardFound ? '形成问题清单' : '更新执行记录', note: status === '待复查' ? '整改资料已齐套，等待复查。' : status === '已闭环' ? '执行结果和影像资料已回传归档。' : hazardFound ? `共记录 ${relatedHazards.length} 项待跟进问题。` : '已更新现场处理进度。' },
+        ],
+        evidenceFiles: [
+          { id: `${task.id}-evidence-1`, title: '现场签到照片', category: '现场图片', time: surveyAssignTimeMap[task.id] || `${task.dueDate} 09:00`, description: `${enterprise.name} 现场到场照片与定位信息。` },
+          { id: `${task.id}-evidence-2`, title: '检查记录单', category: '过程记录', time: `${task.dueDate} 15:30`, description: `记录${task.type}关键检查项、处理意见和责任人。` },
+          { id: `${task.id}-evidence-3`, title: hazardFound ? '问题清单回传' : '执行结果回传', category: hazardFound ? '整改证明' : '过程记录', time: `${task.dueDate} 17:20`, description: hazardFound ? '包含隐患清单、责任分工和整改时限。' : '包含现场结果、结论和服务建议。' },
+        ],
+        hazardFound,
+        hazardCount: relatedHazards.length,
+        rectificationStatus: hazardFound ? (relatedHazards.some(item => item.deadline < dashboardToday) ? '存在超期整改项' : '整改推进中') : '未涉及整改',
+        reviewStatus: status === '待复查' ? '待安排复查' : status === '已闭环' ? '复查已完成' : '暂未进入复查',
+        relatedHazardIds: relatedHazards.map(item => item.id),
+        latestAction: status === '待执行' ? '等待接单确认' : status === '已超期' ? '任务超期待催办' : hazardFound ? `已形成${relatedHazards.length}项问题` : '结果资料已回传',
+      }
+    })
+
+    const serviceRows: TaskCenterItem[] = initialServiceRecords.map((record, index) => {
+      const enterprise = enterprises.find(item => item.id === record.enterpriseId) || enterprises[0]
+      const relatedHazards = hazards.filter(item => item.enterpriseId === record.enterpriseId && item.status !== '已闭环')
+      const overdue = record.date < dashboardToday && record.status !== '已完成' && record.status !== '待验收'
+      const hazardFound = relatedHazards.length > 0
+      const status: UnifiedTaskStatus =
+        overdue
+          ? '已超期'
+          : record.status === '执行中'
+            ? hazardFound ? '已发现隐患' : '执行中'
+            : record.status === '待验收'
+              ? '待复查'
+              : hazardFound
+                ? '待整改'
+                : '已闭环'
+      const progressPercent = status === '执行中' ? 54 : status === '已发现隐患' ? 64 : status === '待整改' ? 76 : status === '待复查' ? 88 : status === '已闭环' ? 100 : 35
+      return {
+        taskId: record.id,
+        taskCode: `RW-202603-${String(index + 101).padStart(3, '0')}`,
+        taskName: `${record.serviceType}结果回传`,
+        enterpriseId: record.enterpriseId,
+        enterpriseName: enterprises.find(item => item.id === record.enterpriseId)?.name || '-',
+        taskType: record.serviceType,
+        source: '服务商执行回传',
+        assignTime: serviceAssignTimeMap[record.id] || `${record.date} 09:00`,
+        dueTime: record.date,
+        assignee: record.provider,
+        status,
+        priority: relatedHazards.some(item => item.deadline < dashboardToday) || enterprise.risk === '高' ? '高' : record.status === '执行中' || record.status === '待验收' ? '中' : '低',
+        taskDescription: record.result,
+        currentProgress: status === '执行中' ? '现场服务正在执行，等待补充完整证据。' : status === '已发现隐患' ? `现场已发现 ${relatedHazards.length} 项隐患，正在催办整改。` : status === '待整改' ? '已提交服务意见，等待企业整改证明。' : status === '待复查' ? '整改资料已回传，等待复查确认。' : status === '已闭环' ? '服务记录、影像和结论已完成归档。' : '当前任务已超期，需要重新调度。',
+        progressPercent,
+        executionRecords: [
+          { id: `${record.id}-step-1`, time: serviceAssignTimeMap[record.id] || `${record.date} 09:00`, actor: record.provider, action: '接收任务', note: `${record.serviceType}任务已进入执行排期。` },
+          { id: `${record.id}-step-2`, time: `${record.date} 11:20`, actor: record.provider, action: '现场服务', note: record.result },
+          { id: `${record.id}-step-3`, time: `${record.date} 17:10`, actor: record.provider, action: status === '待复查' ? '提交复查资料' : status === '已闭环' ? '归档闭环' : '补充执行记录', note: status === '待复查' ? '已上传整改前后对比与闭环证明。' : status === '已闭环' ? '任务验收通过，完成闭环。' : '等待下一步处理意见。' },
+        ],
+        evidenceFiles: [
+          { id: `${record.id}-evidence-1`, title: '现场服务照片', category: '现场图片', time: `${record.date} 10:40`, description: `${enterprise.name} 现场关键点位照片。` },
+          { id: `${record.id}-evidence-2`, title: '服务记录摘要', category: '过程记录', time: `${record.date} 15:50`, description: record.result },
+          { id: `${record.id}-evidence-3`, title: status === '待复查' || status === '已闭环' ? '整改闭环资料' : '跟进说明', category: status === '待复查' || status === '已闭环' ? '整改证明' : '过程记录', time: `${record.date} 17:30`, description: status === '待复查' || status === '已闭环' ? '包含整改前后对比、责任人签字和复查结论。' : '包含后续安排和责任分工。' },
+        ],
+        hazardFound,
+        hazardCount: relatedHazards.length,
+        rectificationStatus: hazardFound ? (relatedHazards.some(item => item.deadline < dashboardToday) ? '存在超期整改项' : '整改推进中') : '未涉及整改',
+        reviewStatus: status === '待复查' ? '待安排复查' : status === '已闭环' ? '复查已完成' : '暂未进入复查',
+        relatedHazardIds: relatedHazards.map(item => item.id),
+        latestAction: record.result,
+      }
+    })
+
+    const hazardRows: TaskCenterItem[] = hazards.map((item, index) => {
+      const enterprise = enterprises.find(ent => ent.id === item.enterpriseId) || enterprises[0]
+      const assignee = latestProviderByEnterprise[item.enterpriseId] || '安巡安全服务机构区域组'
+      const overdue = item.status !== '已闭环' && item.deadline < dashboardToday
+      const status: UnifiedTaskStatus = item.status === '已闭环' ? '已闭环' : item.status === '待复查' ? '待复查' : overdue ? '已超期' : '待整改'
+      return {
+        taskId: `hz-task-${item.id}`,
+        taskCode: `RW-202603-${String(index + 201).padStart(3, '0')}`,
+        taskName: `${item.title}跟进`,
+        enterpriseId: item.enterpriseId,
+        enterpriseName: enterprise.name,
+        taskType: item.status === '待复查' ? '隐患复查' : '隐患整改跟进',
+        source: item.source,
+        assignTime: item.foundAt,
+        dueTime: item.deadline,
+        assignee,
+        status,
+        priority: overdue || item.level === '高' ? '高' : item.level === '中' ? '中' : '低',
+        taskDescription: `围绕“${item.title}”跟进整改、复查和闭环过程。`,
+        currentProgress: status === '待整改' ? '等待企业补齐整改证明和处理结果。' : status === '待复查' ? '整改材料已到位，等待复查安排。' : status === '已闭环' ? '隐患已完成闭环并归档。' : '隐患整改已超期，需要立即催办。',
+        progressPercent: status === '待整改' ? 58 : status === '待复查' ? 82 : status === '已闭环' ? 100 : 41,
+        executionRecords: [
+          { id: `${item.id}-step-1`, time: item.foundAt, actor: assignee, action: '发现隐患', note: `${item.title}，来源：${item.source}` },
+          { id: `${item.id}-step-2`, time: `${item.deadline} 10:00`, actor: enterprise.leader, action: status === '已闭环' ? '提交整改结果' : '推进整改', note: status === '待复查' ? '整改材料已提交，等待复查。' : status === '已闭环' ? '整改完成并提交闭环证明。' : '仍在落实现场整改和责任分工。' },
+          { id: `${item.id}-step-3`, time: `${item.deadline} 16:30`, actor: assignee, action: status === '待复查' ? '安排复查' : status === '已闭环' ? '完成复查' : overdue ? '发起催办' : '持续跟进', note: status === '待复查' ? '已进入复查排期。' : status === '已闭环' ? '复查确认通过，完成闭环。' : overdue ? '已超期，需尽快闭环。' : '保持日常跟进。' },
+        ],
+        evidenceFiles: [
+          { id: `${item.id}-evidence-1`, title: '隐患现场照片', category: '现场图片', time: item.foundAt, description: `${enterprise.name} 问题点位现场照片。` },
+          { id: `${item.id}-evidence-2`, title: '整改通知单', category: '过程记录', time: `${item.deadline} 09:30`, description: '包含整改要求、时限和责任人。' },
+          { id: `${item.id}-evidence-3`, title: status === '已闭环' ? '复查通过记录' : '整改过程留存', category: status === '已闭环' ? '整改证明' : '过程记录', time: `${item.deadline} 16:00`, description: status === '已闭环' ? '复查结果、签字和闭环结论。' : '持续留存整改过程与反馈材料。' },
+        ],
+        hazardFound: true,
+        hazardCount: 1,
+        rectificationStatus: status === '已闭环' ? '整改已完成' : status === '待复查' ? '整改已完成待复查' : overdue ? '整改超期' : item.status === '整改中' ? '整改推进中' : '待启动整改',
+        reviewStatus: status === '待复查' ? '待安排复查' : status === '已闭环' ? '复查已完成' : '暂未进入复查',
+        relatedHazardIds: [item.id],
+        latestAction: status === '已闭环' ? '闭环完成' : status === '待复查' ? '等待复查' : overdue ? '已发起催办' : '整改推进中',
+      }
+    })
+
+    return [...surveyRows, ...serviceRows, ...hazardRows].sort(
+      (a, b) =>
+        ({ 已超期: 7, 待复查: 6, 待整改: 5, 已发现隐患: 4, 执行中: 3, 待执行: 2, 已闭环: 1 }[b.status] -
+          { 已超期: 7, 待复查: 6, 待整改: 5, 已发现隐患: 4, 执行中: 3, 待执行: 2, 已闭环: 1 }[a.status]) ||
+        ({ 高: 3, 中: 2, 低: 1 }[b.priority] - { 高: 3, 中: 2, 低: 1 }[a.priority]) ||
+        a.dueTime.localeCompare(b.dueTime),
+    )
+  }, [dashboardToday, latestProviderByEnterprise])
 
   const serviceTaskRows = useMemo(() => [
     ...initialSurveyTasks.map(task => {
@@ -421,16 +675,54 @@ function App() {
   const taskStatusOptions = [{ value: 'all', label: '全部状态' }, ...Array.from(new Set(todayTaskRows.map(item => item.taskStatus))).map(item => ({ value: item, label: item }))]
   const priorityOptions = [{ value: 'all', label: '全部优先级' }, { value: '高', label: '高优先' }, { value: '中', label: '中优先' }, { value: '低', label: '低优先' }]
   const enterpriseFilterOptions = [{ value: 'all', label: '全部企业' }, ...entOptions]
-  const taskRowsForPage = serviceTaskRows.filter(item => matchesTaskScope(item, taskListScope))
-  const selectedTask = taskRowsForPage.find(item => item.id === selectedTaskId) || taskRowsForPage[0] || serviceTaskRows[0]
-  const hazardRowsForPage = hazards.filter(item => hazardListScope === 'pendingReview' ? item.status === '待复查' : hazardListScope === 'overdueOpen' ? item.status !== '已闭环' && item.deadline < dashboardToday : true).map(item => ({ ...item, enterpriseName: enterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))
+  const taskTypeOptions = [{ value: 'all', label: '全部任务类型' }, ...Array.from(new Set(taskCenterRows.map(item => item.taskType))).map(item => ({ value: item, label: item }))]
+  const taskStatusFilterOptions = [{ value: 'all', label: '全部任务状态' }, ...taskStatusOrder.map(item => ({ value: item, label: item }))]
+  const taskAssigneeOptions = [{ value: 'all', label: '全部执行人' }, ...Array.from(new Set(taskCenterRows.map(item => item.assignee))).map(item => ({ value: item, label: item }))]
+  const taskTimeOptions = (Object.keys(taskTimeFilterLabels) as TaskTimeFilter[]).map(item => ({ value: item, label: taskTimeFilterLabels[item] }))
+  const taskScopedRows = taskCenterRows.filter(item => {
+    if (taskListScope === 'today') return item.status !== '已闭环' && item.dueTime <= dashboardToday
+    if (taskListScope === 'weekCompleted') return item.status === '已闭环' && item.dueTime >= weekStart && item.dueTime <= dashboardToday
+    if (taskListScope === 'monthly') return item.dueTime.startsWith(dashboardMonth) || item.assignTime.startsWith(dashboardMonth)
+    return true
+  })
+  const taskRowsForPage = taskScopedRows.filter(item => {
+    const matchesEnterprise = taskEnterpriseFilter === 'all' || item.enterpriseId === taskEnterpriseFilter
+    const matchesType = taskTypeFilter === 'all' || item.taskType === taskTypeFilter
+    const matchesStatus = taskStatusFilter === 'all' || item.status === taskStatusFilter
+    const matchesPriority = taskPriorityFilter === 'all' || item.priority === taskPriorityFilter
+    const matchesAssignee = taskAssigneeFilter === 'all' || item.assignee === taskAssigneeFilter
+    const matchesTime =
+      taskTimeFilter === 'all' ||
+      (taskTimeFilter === 'last7days' && item.assignTime.slice(0, 10) >= weekStart) ||
+      (taskTimeFilter === 'thisMonth' && (item.assignTime.startsWith(dashboardMonth) || item.dueTime.startsWith(dashboardMonth))) ||
+      (taskTimeFilter === 'next7days' && item.dueTime >= dashboardToday && item.dueTime <= '2026-03-28')
+    const matchesQuick = taskQuickFilter === 'all' || (taskQuickFilter === 'overdue' ? item.status === '已超期' : item.status === '待复查')
+    return matchesEnterprise && matchesType && matchesStatus && matchesPriority && matchesAssignee && matchesTime && matchesQuick
+  })
+  const selectedTask = taskCenterRows.find(item => item.taskId === selectedTaskId) || null
+  const visibleTaskDetail = page === 'tasks' && !!selectedTaskId && !!selectedTask
+  const taskStatusSummary = taskStatusOrder.map(status => ({ status, count: taskScopedRows.filter(item => item.status === status).length }))
+  const hazardRowsForPage = hazards
+    .filter(item => (hazardListScope === 'pendingReview' ? item.status === '待复查' : hazardListScope === 'overdueOpen' ? item.status !== '已闭环' && item.deadline < dashboardToday : true))
+    .filter(item => !hazardEnterpriseId || item.enterpriseId === hazardEnterpriseId)
+    .map(item => ({ ...item, enterpriseName: enterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))
+  const taskScopeDescription = taskListScope === 'today' ? '当前展示今天需要优先调度和执行的任务。' : taskListScope === 'weekCompleted' ? '当前展示本周已闭环任务，便于复盘交付结果。' : taskListScope === 'monthly' ? '当前展示本月任务推进情况，便于统筹交付。' : '当前展示全部任务，可按企业、状态、执行人等条件调度。'
+  const activeHazardEnterpriseName = hazardEnterpriseId ? enterprises.find(item => item.id === hazardEnterpriseId)?.name || '' : ''
 
   const applyRouteState = (route: AppRouteState) => {
     setPage(route.page)
-    if (route.enterpriseId) setSelectedEnterpriseId(route.enterpriseId)
-    if (route.taskListScope) setTaskListScope(route.taskListScope)
-    if (route.hazardListScope) setHazardListScope(route.hazardListScope)
-    if (route.taskId !== undefined) setSelectedTaskId(route.taskId)
+    setSelectedEnterpriseId(route.enterpriseId || defaultEnterpriseId)
+    setTaskListScope(route.taskListScope || 'all')
+    setHazardListScope(route.hazardListScope || 'all')
+    setHazardEnterpriseId(route.hazardEnterpriseId || '')
+    setSelectedTaskId(route.taskId || '')
+    setTaskEnterpriseFilter(route.taskEnterpriseFilter || 'all')
+    setTaskTypeFilter(route.taskTypeFilter || 'all')
+    setTaskStatusFilter(route.taskStatusFilter || 'all')
+    setTaskPriorityFilter(route.taskPriorityFilter || 'all')
+    setTaskTimeFilter(route.taskTimeFilter || 'all')
+    setTaskAssigneeFilter(route.taskAssigneeFilter || 'all')
+    setTaskQuickFilter(route.taskQuickFilter || 'all')
   }
 
   const pushRouteState = (route: AppRouteState) => {
@@ -453,11 +745,34 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  useEffect(() => {
+    if (page !== 'tasks') return
+    const nextRoute: AppRouteState = {
+      page: 'tasks',
+      taskId: selectedTaskId || undefined,
+      taskListScope,
+      taskEnterpriseFilter,
+      taskTypeFilter,
+      taskStatusFilter,
+      taskPriorityFilter,
+      taskTimeFilter,
+      taskAssigneeFilter,
+      taskQuickFilter,
+    }
+    const routeState = { ...nextRoute, __app: historyMarker }
+    window.history.replaceState(routeState, '', buildRouteUrl(routeState))
+  }, [page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
+
   const openTaskCenter = (scope: TaskListScope, taskId?: string, pushHistory = false) => {
-    const scopedRows = serviceTaskRows.filter(item => matchesTaskScope(item, scope))
-    const nextTaskId = taskId || scopedRows[0]?.id || ''
+    const scopedRows = taskCenterRows.filter(item => {
+      if (scope === 'today') return item.status !== '已闭环' && item.dueTime <= dashboardToday
+      if (scope === 'weekCompleted') return item.status === '已闭环' && item.dueTime >= weekStart && item.dueTime <= dashboardToday
+      if (scope === 'monthly') return item.dueTime.startsWith(dashboardMonth) || item.assignTime.startsWith(dashboardMonth)
+      return true
+    })
+    const nextTaskId = taskId || scopedRows[0]?.taskId || ''
     if (pushHistory) {
-      pushRouteState({ page: 'tasks', taskListScope: scope, taskId: nextTaskId })
+      pushRouteState({ page: 'tasks', taskListScope: scope, taskId: nextTaskId, taskEnterpriseFilter: 'all', taskTypeFilter: 'all', taskStatusFilter: 'all', taskPriorityFilter: 'all', taskTimeFilter: 'all', taskAssigneeFilter: 'all', taskQuickFilter: 'all' })
       return
     }
     setTaskListScope(scope)
@@ -472,6 +787,19 @@ function App() {
     }
     setSelectedEnterpriseId(enterpriseId)
     setPage('detail')
+  }
+
+  const openTaskEnterpriseDetail = (task: TaskCenterItem) => {
+    pushRouteState({ page: 'detail', enterpriseId: task.enterpriseId })
+  }
+
+  const openTaskHazards = (task: TaskCenterItem) => {
+    pushRouteState({
+      page: 'hazards',
+      enterpriseId: task.enterpriseId,
+      hazardEnterpriseId: task.enterpriseId,
+      hazardListScope: task.status === '待复查' ? 'pendingReview' : task.status === '已超期' ? 'overdueOpen' : 'all',
+    })
   }
 
   const overviewCards = [
@@ -530,17 +858,275 @@ function App() {
 
           {page === 'scoreConfig' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">评分机制配置页</div><div className="page-subtitle">支持评分方案、维度、规则、等级区间的试用态配置。</div></div><button className="btn btn-dark" onClick={() => setMessage('评分配置已保存在前端试用态')}>保存配置</button></div><Card title="评分方案" extra={<Badge tone="violet">试用版</Badge>}><Table columns={['方案名称', '版本', '状态', '生效时间', '快照策略', '描述', '操作']} rows={schemeRows} renderRow={(item: ScoreScheme) => <tr key={item.id}><td className="cell strong">{item.name}</td><td>{item.version}</td><td><StatusBadge value={item.status} /></td><td>{item.effectiveFrom}</td><td>{item.snapshotPolicy}</td><td className="wrap-cell">{item.description}</td><td><button className="btn btn-xs btn-light" onClick={() => { setSchemeRows(prev => prev.map(row => ({ ...row, status: row.id === item.id ? '启用' : '草稿' }))); setMessage(`已切换启用方案：${item.name}`) }}>设为启用</button></td></tr>} /></Card><div className="two-col"><Card title="评分维度" extra={<Badge tone="cyan">当前方案</Badge>}><Table columns={['维度编码', '维度名称', '权重', '排序', '说明']} rows={dimensionRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreDimension) => <tr key={item.id}><td>{item.code}</td><td className="cell strong">{item.name}</td><td><input className="inline-input" type="number" value={item.weight} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} /></td><td><input className="inline-input" type="number" value={item.order} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, order: Number(event.target.value) } : row))} /></td><td className="wrap-cell"><input className="inline-input" value={item.note} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, note: event.target.value } : row))} /></td></tr>} /></Card><Card title="评分等级区间" extra={<Badge tone="amber">快照按生成时锁定</Badge>}><Table columns={['等级', '最小值', '最大值', '颜色', '说明']} rows={levelRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreLevelRange) => <tr key={item.id}><td className="cell strong">{item.name}</td><td><input className="inline-input" type="number" value={item.min} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, min: Number(event.target.value) } : row))} /></td><td><input className="inline-input" type="number" value={item.max} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, max: Number(event.target.value) } : row))} /></td><td><select value={item.color} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, color: event.target.value as Tone } : row))}>{(['emerald', 'blue', 'amber', 'red'] as Tone[]).map(tone => <option key={tone} value={tone}>{tone}</option>)}</select></td><td className="wrap-cell"><input className="inline-input" value={item.description} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, description: event.target.value } : row))} /></td></tr>} /></Card></div><Card title="评分规则" extra={<Badge tone="blue">字段已预留真实接入能力</Badge>}><Table columns={['规则名称', '指标编码', '所属维度', '数据来源字段', '统计周期', '计算方式', '分值上限', '启用状态', '适用企业类型']} rows={ruleRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreRule) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.metricCode}</td><td>{dimensionRows.find(dimension => dimension.id === item.dimensionId)?.name || '-'}</td><td className="wrap-cell">{item.dataSourceField}</td><td>{item.statPeriod}</td><td>{item.calcMethod}</td><td>{item.maxScore}</td><td>{item.enabled ? <Badge tone="emerald">启用</Badge> : <Badge tone="slate">停用</Badge>}</td><td className="wrap-cell">{item.enterpriseTypes.join(' / ')}</td></tr>} /></Card></div>}
 
-          {page === 'hazards' && <Card title={hazardListScope === 'pendingReview' ? '待复查隐患台账' : hazardListScope === 'overdueOpen' ? '超期未闭环台账' : '隐患闭环台账'} extra={<Badge tone={hazardListScope === 'all' ? 'slate' : 'amber'}>{hazardRowsForPage.length} 项</Badge>}><Table columns={['隐患内容', '企业', '等级', '状态', '来源', '发现时间', '整改期限']} rows={hazardRowsForPage} renderRow={item => <tr key={item.id} className="clickable-row" onClick={() => openEnterpriseDetail(item.enterpriseId)}><td className="cell strong wrap-cell">{item.title}</td><td>{item.enterpriseName}</td><td><RiskBadge level={item.level} /></td><td><StatusBadge value={item.status} /></td><td>{item.source}</td><td>{item.foundAt}</td><td>{item.deadline}</td></tr>} /></Card>}
+          {page === 'hazards' && (
+            <Card
+              title={hazardListScope === 'pendingReview' ? '待复查隐患台账' : hazardListScope === 'overdueOpen' ? '超期未闭环台账' : '隐患闭环台账'}
+              extra={
+                <div className="inline-row">
+                  {activeHazardEnterpriseName && <Badge tone="blue">{activeHazardEnterpriseName}</Badge>}
+                  <Badge tone={hazardListScope === 'all' ? 'slate' : 'amber'}>{hazardRowsForPage.length} 项</Badge>
+                </div>
+              }
+            >
+              <Table
+                columns={['隐患内容', '企业', '等级', '状态', '来源', '发现时间', '整改期限']}
+                rows={hazardRowsForPage}
+                renderRow={item => (
+                  <tr key={item.id} className="clickable-row" onClick={() => openEnterpriseDetail(item.enterpriseId)}>
+                    <td className="cell strong wrap-cell">{item.title}</td>
+                    <td>{item.enterpriseName}</td>
+                    <td><RiskBadge level={item.level} /></td>
+                    <td><StatusBadge value={item.status} /></td>
+                    <td>{item.source}</td>
+                    <td>{item.foundAt}</td>
+                    <td>{item.deadline}</td>
+                  </tr>
+                )}
+              />
+            </Card>
+          )}
 
           {page === 'devices' && <Card title="设备 / 物联展示" extra={<Badge tone="amber">评分规则已预留来源字段</Badge>}><Table columns={['设备名称', '企业', '类型', '位置', '状态', '最近心跳']} rows={devices.map(item => ({ ...item, enterpriseName: enterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))} renderRow={item => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.enterpriseName}</td><td>{item.type}</td><td>{item.location}</td><td><DeviceBadge status={item.status} /></td><td>{item.heartbeat}</td></tr>} /></Card>}
 
-          {page === 'tasks' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">任务中心</div><div className="page-subtitle">{taskListScope === 'today' ? '当前展示今天需要优先执行的任务。' : taskListScope === 'weekCompleted' ? '当前展示本周已完成或已交付待验收任务。' : taskListScope === 'monthly' ? '当前展示本月任务推进情况。' : '当前展示全部服务任务。'}</div></div><div className="inline-row"><Badge tone="violet">{taskRowsForPage.length} 项</Badge><button className="btn btn-xs btn-light" onClick={() => openTaskCenter('all')}>查看全部任务</button></div></div><div className="task-layout"><Card title="任务清单" extra={<Badge tone="blue">{selectedTask ? selectedTask.enterpriseName : '暂无任务'}</Badge>}>{taskRowsForPage.length ? <Table className="task-table" columns={['任务名称', '企业', '任务类型', '截至日期', '状态', '优先级']} rows={taskRowsForPage} renderRow={item => <tr key={item.id} className={cn('clickable-row', selectedTask?.id === item.id && 'row-active')} onClick={() => setSelectedTaskId(item.id)}><td className="cell strong wrap-cell">{item.taskName}</td><td className="wrap-cell">{item.enterpriseName}</td><td>{item.taskType}</td><td>{item.dueDate}</td><td><StatusBadge value={item.taskStatus} /></td><td><PriorityBadge value={item.priority} /></td></tr>} /> : <div className="empty-state">当前范围内没有任务。</div>}</Card><Card title="任务详情" extra={selectedTask ? <StatusBadge value={selectedTask.taskStatus} /> : undefined}>{selectedTask ? <div className="stack"><div className="surface-outline row-active-panel"><div className="title-sm">{selectedTask.taskName}</div><div className="small muted">{selectedTask.enterpriseName}</div></div><div className="summary-grid"><div className="mini-card"><div className="muted">任务类型</div><div className="title-sm">{selectedTask.taskType}</div></div><div className="mini-card"><div className="muted">截止时间</div><div className="title-sm">{selectedTask.dueDate}</div></div><div className="mini-card"><div className="muted">当前状态</div><div className="mt-8"><StatusBadge value={selectedTask.taskStatus} /></div></div><div className="mini-card"><div className="muted">优先级</div><div className="mt-8"><PriorityBadge value={selectedTask.priority} /></div></div></div><div className="surface-outline"><div className="section-subtitle">当前要做什么</div><div className="body mt-8">{selectedTask.focus}</div></div><div className="surface-outline"><div className="section-subtitle">执行信息</div><div className="body mt-8">执行方：{selectedTask.assignee}</div><div className="body">最近动作：{selectedTask.latestAction}</div><div className="body">未闭环隐患数：{selectedTask.openHazardCount}</div><div className="body">超期项数：{selectedTask.overdueCount}</div></div><div className="button-row"><button className="btn btn-dark" onClick={() => openEnterpriseDetail(selectedTask.enterpriseId)}>查看企业画像</button><button className="btn btn-light" onClick={() => { setSelectedEnterpriseId(selectedTask.enterpriseId); setPage('scoreDetail') }}>查看评分详情</button></div></div> : <div className="empty-state">请选择左侧任务查看详情。</div>}</Card></div></div>}
+          {page === 'tasks' && (
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">任务中心</div>
+                  <div className="page-subtitle">{taskScopeDescription}</div>
+                </div>
+                <div className="inline-row">
+                  <Badge tone="violet">{taskRowsForPage.length} 项</Badge>
+                  <button className="btn btn-xs btn-light" onClick={() => openTaskCenter('all')}>查看全部任务</button>
+                </div>
+              </div>
+
+              <div className="task-status-grid">
+                {taskStatusSummary.map(item => (
+                  <button
+                    key={item.status}
+                    className={cn('task-status-card', taskStatusFilter === item.status && 'task-status-card-active')}
+                    onClick={() => {
+                      setTaskStatusFilter(prev => (prev === item.status ? 'all' : item.status))
+                      setTaskQuickFilter('all')
+                    }}
+                  >
+                    <div className="task-status-card-head">
+                      <TaskStatusBadge value={item.status} />
+                      <span className="task-status-count">{item.count}</span>
+                    </div>
+                    <div className="small muted">点击聚焦该状态任务</div>
+                  </button>
+                ))}
+              </div>
+
+              <Card
+                title="顶部筛选区"
+                extra={
+                  <div className="task-quick-filters">
+                    {(Object.keys(taskQuickFilterLabels) as TaskQuickFilter[]).filter(item => item !== 'all').map(item => (
+                      <button
+                        key={item}
+                        className={cn('task-quick-chip', taskQuickFilter === item && 'task-quick-chip-active')}
+                        onClick={() => setTaskQuickFilter(prev => (prev === item ? 'all' : item))}
+                      >
+                        {taskQuickFilterLabels[item]}
+                      </button>
+                    ))}
+                  </div>
+                }
+              >
+                <div className="task-filter-grid">
+                  <Select value={taskEnterpriseFilter} onChange={setTaskEnterpriseFilter} options={[{ value: 'all', label: '全部企业' }, ...entOptions]} />
+                  <Select value={taskTypeFilter} onChange={setTaskTypeFilter} options={taskTypeOptions} />
+                  <Select value={taskStatusFilter} onChange={value => setTaskStatusFilter(value as 'all' | UnifiedTaskStatus)} options={taskStatusFilterOptions} />
+                  <Select value={taskPriorityFilter} onChange={value => setTaskPriorityFilter(value as 'all' | TaskPriority)} options={priorityOptions} />
+                  <Select value={taskTimeFilter} onChange={value => setTaskTimeFilter(value as TaskTimeFilter)} options={taskTimeOptions} />
+                  <Select value={taskAssigneeFilter} onChange={setTaskAssigneeFilter} options={taskAssigneeOptions} />
+                </div>
+              </Card>
+
+              <Card title="任务列表区" extra={<Badge tone="blue">{taskRowsForPage.length} 条任务</Badge>}>
+                {taskRowsForPage.length ? (
+                  <Table
+                    className="task-table"
+                    columns={['任务编号', '任务名称', '企业名称', '任务类型', '来源', '派发时间', '截止时间', '执行人', '当前状态', '优先级', '操作']}
+                    rows={taskRowsForPage}
+                    renderRow={(item: TaskCenterItem) => (
+                      <tr key={item.taskId} className={cn('clickable-row', selectedTaskId === item.taskId && 'row-active')} onClick={() => setSelectedTaskId(item.taskId)}>
+                        <td>{item.taskCode}</td>
+                        <td className="cell strong wrap-cell">{item.taskName}</td>
+                        <td className="wrap-cell">{item.enterpriseName}</td>
+                        <td>{item.taskType}</td>
+                        <td>{item.source}</td>
+                        <td>{item.assignTime}</td>
+                        <td>{item.dueTime}</td>
+                        <td>{item.assignee}</td>
+                        <td><TaskStatusBadge value={item.status} /></td>
+                        <td><PriorityBadge value={item.priority} /></td>
+                        <td>
+                          <button
+                            className="btn btn-xs btn-dark"
+                            onClick={event => {
+                              event.stopPropagation()
+                              setSelectedTaskId(item.taskId)
+                            }}
+                          >
+                            查看详情
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  />
+                ) : (
+                  <div className="empty-state">当前筛选条件下没有任务，请调整筛选后重试。</div>
+                )}
+              </Card>
+            </div>
+          )}
 
           {page === 'users' && <div className="stack-lg"><div className="two-col">{(['企业', '安全服务商', '保险平台', '应急局'] as Perspective[]).map(group => <Card key={group} title={`${group}角色成员`} extra={<PerspectiveBadge value={group} />}><Table columns={['姓名', '所属单位', '岗位', '数据范围', '状态', '最近登录']} rows={users.filter(item => item.group === group)} renderRow={(item: UserItem) => <tr key={item.id}><td className="cell strong">{item.name}</td><td>{item.org}</td><td>{item.role}</td><td>{item.scope}</td><td><StatusBadge value={item.status} /></td><td>{item.lastLogin}</td></tr>} /></Card>)}</div><Card title="数据分层可见规则" extra={<Badge tone="cyan">默认可见范围</Badge>}><Table columns={['角色', '可见内容', '默认不可见']} rows={privacyRules} renderRow={item => <tr key={item.audience}><td className="cell strong">{item.audience}</td><td className="wrap-cell">{item.visible}</td><td className="wrap-cell">{item.hidden}</td></tr>} /></Card></div>}
 
           {page === 'bigscreen' && <Card title="演示总览" extra={<Badge tone="amber">本次不扩展大屏</Badge>}><div className="body">本轮只做评分试用版能力，没有新增复杂大屏；保留该入口仅用于说明本次边界。</div></Card>}
         </div>
       </div>
+
+      {visibleTaskDetail && selectedTask && (
+        <>
+          <div className="drawer-mask" onClick={() => setSelectedTaskId('')} />
+          <aside className="drawer-panel task-detail-drawer">
+            <div className="drawer-head">
+              <div>
+                <div className="page-title" style={{ fontSize: 22 }}>任务详情</div>
+                <div className="page-subtitle">{selectedTask.taskCode} · {selectedTask.enterpriseName}</div>
+              </div>
+              <button className="btn btn-light" onClick={() => setSelectedTaskId('')}>关闭</button>
+            </div>
+
+            <div className="stack-lg">
+              <div className="surface-outline task-detail-header">
+                <div className="stack-sm">
+                  <div className="title-sm">{selectedTask.taskName}</div>
+                  <div className="small muted">{selectedTask.taskDescription}</div>
+                </div>
+                <div className="inline-row">
+                  <TaskStatusBadge value={selectedTask.status} />
+                  <PriorityBadge value={selectedTask.priority} />
+                </div>
+              </div>
+
+              <div className="summary-grid">
+                <div className="mini-card">
+                  <div className="muted">任务类型</div>
+                  <div className="title-sm">{selectedTask.taskType}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">来源</div>
+                  <div className="title-sm">{selectedTask.source}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">派发时间</div>
+                  <div className="title-sm">{selectedTask.assignTime}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">截止时间</div>
+                  <div className="title-sm">{selectedTask.dueTime}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">执行人</div>
+                  <div className="title-sm">{selectedTask.assignee}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">当前进度</div>
+                  <div className="title-sm">{selectedTask.progressPercent}%</div>
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">当前进度</div>
+                <div className="body mt-8">{selectedTask.currentProgress}</div>
+                <div className="spacer-sm" />
+                <div className="progress-track">
+                  <div className={cn('progress-bar', selectedTask.status === '已闭环' ? 'progress-emerald' : selectedTask.status === '已超期' ? 'progress-red' : 'progress-blue')} style={{ width: `${selectedTask.progressPercent}%` }} />
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">任务说明</div>
+                <div className="body mt-8">{selectedTask.taskDescription}</div>
+                <div className="body">最近动作：{selectedTask.latestAction}</div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">关联企业</div>
+                <div className="body mt-8">{selectedTask.enterpriseName}</div>
+                <div className="small muted">点击下方按钮可查看企业画像，返回后会回到当前任务中心状态。</div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">执行记录</div>
+                <div className="task-timeline">
+                  {selectedTask.executionRecords.map(item => (
+                    <div key={item.id} className="task-timeline-item">
+                      <div className="task-timeline-dot" />
+                      <div className="task-timeline-body">
+                        <div className="list-card-head">
+                          <div>
+                            <div className="title-sm">{item.action}</div>
+                            <div className="small muted">{item.actor}</div>
+                          </div>
+                          <div className="small muted">{item.time}</div>
+                        </div>
+                        <div className="body mt-8">{item.note}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">现场图片 / 证据</div>
+                <div className="task-evidence-grid">
+                  {selectedTask.evidenceFiles.map(item => (
+                    <div key={item.id} className="task-evidence-card">
+                      <div className="task-evidence-preview">{item.category}</div>
+                      <div className="stack-sm">
+                        <div className="title-sm">{item.title}</div>
+                        <div className="small muted">{item.time}</div>
+                        <div className="body">{item.description}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="summary-grid">
+                <div className="mini-card">
+                  <div className="muted">是否发现隐患</div>
+                  <div className="title-sm">{selectedTask.hazardFound ? '是' : '否'}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">隐患数量</div>
+                  <div className="title-sm">{selectedTask.hazardCount} 项</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">后续整改状态</div>
+                  <div className="title-sm">{selectedTask.rectificationStatus}</div>
+                </div>
+                <div className="mini-card">
+                  <div className="muted">复查状态</div>
+                  <div className="title-sm">{selectedTask.reviewStatus}</div>
+                </div>
+              </div>
+
+              <div className="button-row">
+                <button className="btn btn-dark" onClick={() => openTaskEnterpriseDetail(selectedTask)}>查看企业画像</button>
+                {selectedTask.hazardFound && <button className="btn btn-light" onClick={() => openTaskHazards(selectedTask)}>查看隐患闭环</button>}
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
 
       {drawerSnapshot && <><div className="drawer-mask" onClick={() => setDrawer(null)} /><aside className="drawer-panel"><div className="drawer-head"><div><div className="page-title" style={{ fontSize: 22 }}>扣分明细抽屉</div><div className="page-subtitle">{drawerSnapshot.enterpriseName} · {drawerSnapshot.month} · 历史不可覆盖</div></div><button className="btn btn-light" onClick={() => setDrawer(null)}>关闭</button></div><div className="stack-lg">{detailRows.map(item => <div key={item.id} className="surface-outline"><div className="list-card-head"><div><div className="title-sm">{item.ruleName}</div><div className="small muted">{item.dimensionName} · {item.metricCode}</div></div><Badge tone={item.deducted > 0 ? 'red' : 'emerald'}>{item.score}/{item.maxScore}</Badge></div><div className="spacer-sm" /><div className="body">实际值：{item.actualValue}</div><div className="body">扣分说明：{item.reason}</div><div className="small muted">来源字段：{item.dataSourceField}</div><div className="small muted">来源表：{item.sourceTable}</div><div className="small muted">API 字段：{item.sourceApiField}</div></div>)}</div></aside></>}
     </div>
