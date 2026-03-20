@@ -482,6 +482,17 @@ select {
   color: #475569;
   word-break: break-word;
 }
+.todo-action {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+  font: inherit;
+  transition: border-color .16s ease, background .16s ease;
+}
+.todo-action:hover {
+  border-color: #cbd5e1;
+  background: #fff;
+}
 
 .score-toolbar {
   display: grid;

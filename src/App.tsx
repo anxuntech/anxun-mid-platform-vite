@@ -88,6 +88,12 @@ type AppRouteState = {
   recordTimeFilter?: string
   recordStatusFilter?: string
   recordQuickFilter?: string
+  insurerAreaFilter?: string
+  insurerIndustryFilter?: string
+  insurerTierFilter?: string
+  regulatorAreaFilter?: string
+  regulatorIndustryFilter?: string
+  regulatorStatusFilter?: string
 }
 
 type Enterprise = { id: string; name: string; industry: string; area: string; leader: string; phone: string; score: number; level: Level; risk: Risk; tags: string[]; deviceCount: number }
@@ -262,22 +268,27 @@ const perspectives = [
 
 const navItems = [
   { key: 'dashboard' as PageKey, label: '总览首页', icon: Gauge },
+  { key: 'users' as PageKey, label: '企业首页', icon: Briefcase },
+  { key: 'scoreTrend' as PageKey, label: '保险风控', icon: LineChart },
+  { key: 'bigscreen' as PageKey, label: '应急监管', icon: Monitor },
   { key: 'enterprises' as PageKey, label: '企业列表', icon: Building2 },
   { key: 'detail' as PageKey, label: '企业画像', icon: Factory },
   { key: 'scoreDetail' as PageKey, label: '月度快照', icon: Calculator },
-  { key: 'scoreTrend' as PageKey, label: '评分趋势', icon: LineChart },
   { key: 'scoreConfig' as PageKey, label: '评分机制配置', icon: Settings2 },
   { key: 'hazards' as PageKey, label: '隐患闭环', icon: FileWarning },
   { key: 'devices' as PageKey, label: '数据台账', icon: Radio },
   { key: 'tasks' as PageKey, label: '任务中心', icon: ClipboardCheck },
-  { key: 'users' as PageKey, label: '人员管理', icon: Users },
-  { key: 'bigscreen' as PageKey, label: '演示总览', icon: Monitor },
 ]
 
 const toneMap: Record<Tone, string> = { red: 'badge-red', amber: 'badge-amber', emerald: 'badge-emerald', blue: 'badge-blue', slate: 'badge-slate', violet: 'badge-violet', cyan: 'badge-cyan' }
 const cn = (...v: Array<string | false | undefined | null>) => v.filter(Boolean).join(' ')
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 const round = (v: number) => Number(v.toFixed(2))
+const daysBetween = (from: string, to: string) => {
+  const fromTime = new Date(`${from.slice(0, 10)}T00:00:00`).getTime()
+  const toTime = new Date(`${to.slice(0, 10)}T00:00:00`).getTime()
+  return Math.max(0, Math.round((toTime - fromTime) / (24 * 60 * 60 * 1000)))
+}
 const entType = (ent: Enterprise) => (ent.industry.includes('仓储') ? '仓储物流' : ent.industry.includes('新能源') ? '新能源制造' : '制造业')
 const bias = (m: string) => ({ '2026-01': -2, '2026-02': -1, '2026-03': 0, '2026-04': 1 }[m] ?? 0)
 const defaultEnterpriseId = 'ent-002'
@@ -417,6 +428,12 @@ function App() {
   const [recordTimeFilter, setRecordTimeFilter] = useState('all')
   const [recordStatusFilter, setRecordStatusFilter] = useState('all')
   const [recordQuickFilter, setRecordQuickFilter] = useState('all')
+  const [insurerAreaFilter, setInsurerAreaFilter] = useState('all')
+  const [insurerIndustryFilter, setInsurerIndustryFilter] = useState('all')
+  const [insurerTierFilter, setInsurerTierFilter] = useState('all')
+  const [regulatorAreaFilter, setRegulatorAreaFilter] = useState('all')
+  const [regulatorIndustryFilter, setRegulatorIndustryFilter] = useState('all')
+  const [regulatorStatusFilter, setRegulatorStatusFilter] = useState('all')
   const [dashboardEnterpriseFilter, setDashboardEnterpriseFilter] = useState('all')
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState('all')
   const [dashboardPriorityFilter, setDashboardPriorityFilter] = useState<'all' | TaskPriority>('all')
@@ -1031,6 +1048,133 @@ function App() {
     })
   }, [activeScheme.id, approvals, dimensionRows, levelRows, months, portraitServiceRecords, ruleRows, selectedEnterprise, snapshots])
   const activePortraitSnapshot = portraitTrendRows.find(item => item.month === (detailSnapshotMonth || selectedMonth)) || portraitTrendRows[portraitTrendRows.length - 1]
+  const enterpriseHomeTodos = useMemo(() => {
+    const enterpriseTasks = taskCenterRows.filter(item => item.enterpriseId === selectedEnterprise.id && item.status !== '已闭环').sort((a, b) => a.dueTime.localeCompare(b.dueTime))
+    const waitingTasks = enterpriseTasks.filter(item => item.status === '待执行' || item.status === '执行中' || item.status === '已超期').slice(0, 4)
+    const pendingRectification = hazardRowsDetailed.filter(item => item.enterpriseId === selectedEnterprise.id && item.status !== '已闭环').slice(0, 4)
+    const pendingMaterials = serviceLedgerRows.filter(item => item.enterpriseId === selectedEnterprise.id && item.missingEvidenceCount > 0).slice(0, 4)
+    const upcomingMatters = enterpriseTasks.filter(item => daysBetween(dashboardToday, item.dueTime) <= 3).slice(0, 4)
+    return { waitingTasks, pendingRectification, pendingMaterials, upcomingMatters }
+  }, [dashboardToday, hazardRowsDetailed, selectedEnterprise.id, serviceLedgerRows, taskCenterRows])
+  const enterpriseRecentRecords = serviceLedgerRows.filter(item => item.enterpriseId === selectedEnterprise.id).sort((a, b) => b.executedAt.localeCompare(a.executedAt)).slice(0, 4)
+  const enterpriseBriefMonths = months.slice(-3)
+  const enterpriseBriefRows = enterpriseBriefMonths.map(month => {
+    const trend = portraitTrendRows.find(item => item.month === month)
+    return trend || activePortraitSnapshot
+  })
+  const insurerAreaOptions = [{ value: 'all', label: '全部区域' }, ...Array.from(new Set(enterprises.map(item => item.area))).map(item => ({ value: item, label: item }))]
+  const insurerIndustryOptions = [{ value: 'all', label: '全部行业' }, ...Array.from(new Set(enterprises.map(item => item.industry))).map(item => ({ value: item, label: item }))]
+  const insurerTierOptions = [{ value: 'all', label: '全部分层' }, { value: 'A', label: 'A层' }, { value: 'B', label: 'B层' }, { value: 'C', label: 'C层' }, { value: 'D', label: 'D层' }]
+  const insuranceRows = useMemo(() => {
+    return enterprises
+      .map(ent => {
+        const snapshotRow = snapshotRows.find(item => item.enterpriseId === ent.id) || snapshotRows[0]
+        const openHazardCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环').length
+        const overdueCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.isOverdue).length
+        const lastServiceDate = latestServiceDateByEnterprise[ent.id]
+        const serviceCount = taskCenterRows.filter(item => item.enterpriseId === ent.id && (item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth))).length
+        const tier = ent.level
+        const reasons = [
+          overdueCount > 0 ? `${overdueCount} 项超期整改` : '',
+          openHazardCount >= 3 ? `${openHazardCount} 项未闭环隐患` : openHazardCount > 0 ? `${openHazardCount} 项待跟进隐患` : '',
+          snapshotRow.closureRate < 80 ? '闭环率偏低' : '',
+          serviceCount <= 1 ? '本月服务动作偏少' : '',
+        ].filter(Boolean)
+        const riskReason = reasons[0] || '当前风险整体可控'
+        const manualReviewSuggested = tier === 'D' || snapshotRow.trendStatus === '下滑预警' || overdueCount > 0
+        return {
+          enterpriseId: ent.id,
+          enterpriseName: ent.name,
+          area: ent.area,
+          industry: ent.industry,
+          riskTier: tier,
+          riskReason,
+          snapshotDate: snapshotRow.detail.generatedAt,
+          openHazardCount,
+          overdueCount,
+          lastServiceDate,
+          serviceCoverageRate: snapshotRow.inspectionCoverageRate,
+          taskCompletionRate: round((taskCenterRows.filter(item => item.enterpriseId === ent.id && item.status === '已闭环').length / Math.max(1, taskCenterRows.filter(item => item.enterpriseId === ent.id).length)) * 100),
+          closureRate: snapshotRow.closureRate,
+          manualReviewSuggested,
+          riskTrend: snapshotRow.trendStatus,
+          snapshotId: snapshotRow.snapshotId,
+          note: reasons.slice(0, 2).join('、') || '本月表现稳定',
+        }
+      })
+      .filter(item => (insurerAreaFilter === 'all' || item.area === insurerAreaFilter) && (insurerIndustryFilter === 'all' || item.industry === insurerIndustryFilter) && (insurerTierFilter === 'all' || item.riskTier === insurerTierFilter))
+      .sort((a, b) => ({ D: 4, C: 3, B: 2, A: 1 }[b.riskTier] - { D: 4, C: 3, B: 2, A: 1 }[a.riskTier]) || Number(b.manualReviewSuggested) - Number(a.manualReviewSuggested) || b.overdueCount - a.overdueCount)
+  }, [enterprises, hazardRowsDetailed, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, latestServiceDateByEnterprise, selectedMonth, snapshotRows, taskCenterRows])
+  const insurerOverview = {
+    highRiskCount: insuranceRows.filter(item => item.riskTier === 'D').length,
+    focusCount: insuranceRows.filter(item => item.riskTier === 'C' || item.manualReviewSuggested).length,
+    snapshotCount: insuranceRows.length,
+    coverageRate: round((new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size / enterprises.length) * 100),
+    manualReviewCount: insuranceRows.filter(item => item.manualReviewSuggested).length,
+  }
+  const insurerFocusRows = insuranceRows.filter(item => item.riskTier === 'D' || item.riskTrend === '下滑预警' || item.manualReviewSuggested).slice(0, 6)
+  const insurerServiceSummary = {
+    coveredCount: new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size,
+    completionRate: round((taskCenterRows.filter(item => item.status === '已闭环').length / Math.max(1, taskCenterRows.length)) * 100),
+    closureRate: snapshotOverview.closureRate,
+    serviceGap: enterprises.length - new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size,
+  }
+  const insurerReviewRows = insurerFocusRows.slice(0, 4)
+  const regulatorAreaOptions = [{ value: 'all', label: '全部区域' }, ...Array.from(new Set(enterprises.map(item => item.area))).map(item => ({ value: item, label: item }))]
+  const regulatorIndustryOptions = [{ value: 'all', label: '全部行业' }, ...Array.from(new Set(enterprises.map(item => item.industry))).map(item => ({ value: item, label: item }))]
+  const regulatorStatusOptions = [{ value: 'all', label: '全部状态' }, { value: '高风险关注', label: '高风险关注' }, { value: '整改中', label: '整改中' }, { value: '平稳', label: '平稳' }]
+  const regulatorEnterpriseRows = useMemo(() => {
+    return enterprises
+      .map(ent => {
+        const openHazardCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环').length
+        const overdueCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.isOverdue).length
+        const currentStatus = overdueCount > 0 || ent.risk === '高' ? '高风险关注' : openHazardCount > 0 ? '整改中' : '平稳'
+        return {
+          enterpriseId: ent.id,
+          enterpriseName: ent.name,
+          area: ent.area,
+          industry: ent.industry,
+          riskLevel: ent.risk,
+          openHazardCount,
+          overdueCount,
+          lastServiceDate: latestServiceDateByEnterprise[ent.id],
+          currentStatus,
+        }
+      })
+      .filter(item => (regulatorAreaFilter === 'all' || item.area === regulatorAreaFilter) && (regulatorIndustryFilter === 'all' || item.industry === regulatorIndustryFilter) && (regulatorStatusFilter === 'all' || item.currentStatus === regulatorStatusFilter))
+      .sort((a, b) => ({ 高: 3, 中: 2, 低: 1 }[b.riskLevel] - { 高: 3, 中: 2, 低: 1 }[a.riskLevel]) || b.overdueCount - a.overdueCount)
+  }, [enterprises, hazardRowsDetailed, latestServiceDateByEnterprise, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
+  const regulatorOverdueRows = hazardRowsDetailed
+    .filter(item => item.isOverdue)
+    .filter(item => {
+      const enterprise = enterprises.find(ent => ent.id === item.enterpriseId)
+      return (!!enterprise && (regulatorAreaFilter === 'all' || enterprise.area === regulatorAreaFilter) && (regulatorIndustryFilter === 'all' || enterprise.industry === regulatorIndustryFilter))
+    })
+    .map(item => ({
+      ...item,
+      overdueDays: daysBetween(item.rectificationDeadline, dashboardToday),
+    }))
+    .sort((a, b) => b.overdueDays - a.overdueDays)
+  const regulatorTraceRows = serviceLedgerRows
+    .filter(item => {
+      const enterprise = enterprises.find(ent => ent.id === item.enterpriseId)
+      const currentStatus = regulatorEnterpriseRows.find(row => row.enterpriseId === item.enterpriseId)?.currentStatus || '平稳'
+      return !!enterprise && (regulatorAreaFilter === 'all' || enterprise.area === regulatorAreaFilter) && (regulatorIndustryFilter === 'all' || enterprise.industry === regulatorIndustryFilter) && (regulatorStatusFilter === 'all' || currentStatus === regulatorStatusFilter)
+    })
+    .slice(0, 6)
+  const regulatorOverview = {
+    focusEnterpriseCount: regulatorEnterpriseRows.filter(item => item.riskLevel === '高' || item.currentStatus === '高风险关注').length,
+    overdueCount: regulatorOverdueRows.length,
+    openHazardCount: regulatorEnterpriseRows.reduce((sum, item) => sum + item.openHazardCount, 0),
+    monthlyClosureRate: regulatorEnterpriseRows.length ? snapshotOverview.closureRate : 0,
+    spotCheckRate: round((regulatorTraceRows.length / Math.max(1, regulatorEnterpriseRows.length * 2)) * 100),
+  }
+  const regulatorBriefRows = snapshotTrendRows.slice(-3).map(item => ({
+    month: item.month,
+    closureRate: item.closureRate,
+    highRiskCount: item.highRiskCount,
+    note: item.note,
+  }))
   const routeState = useMemo(() => parseAppLocation(location.pathname, location.search) as AppRouteState, [location.pathname, location.search])
   const currentHref = `${location.pathname}${location.search}`
 
@@ -1068,6 +1212,12 @@ function App() {
     setRecordTimeFilter(route.recordTimeFilter || 'all')
     setRecordStatusFilter(route.recordStatusFilter || 'all')
     setRecordQuickFilter(route.recordQuickFilter || 'all')
+    setInsurerAreaFilter(route.insurerAreaFilter || 'all')
+    setInsurerIndustryFilter(route.insurerIndustryFilter || 'all')
+    setInsurerTierFilter(route.insurerTierFilter || 'all')
+    setRegulatorAreaFilter(route.regulatorAreaFilter || 'all')
+    setRegulatorIndustryFilter(route.regulatorIndustryFilter || 'all')
+    setRegulatorStatusFilter(route.regulatorStatusFilter || 'all')
   }
 
   const navigateToRoute = (route: AppRouteState, replace = false) => {
@@ -1136,10 +1286,12 @@ function App() {
 
   useEffect(() => {
     if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined }, true)
-    if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
+    if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', selectedMonth, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter }, true)
     if (page === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter }, true)
-    if (page === 'scoreConfig' || page === 'users' || page === 'bigscreen' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
-  }, [page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter])
+    if (page === 'users') navigateToRoute({ page: 'users', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
+    if (page === 'bigscreen') navigateToRoute({ page: 'bigscreen', selectedMonth, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter }, true)
+    if (page === 'scoreConfig' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
+  }, [page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
 
   useEffect(() => {
     if (page === 'scoreDetail' && snapshotEnterpriseFilter !== 'all') {
@@ -1304,6 +1456,20 @@ function App() {
     setSelectedRecordId(recordId)
   }
 
+  const openRecordLedger = (recordId: string, enterpriseId?: string) => {
+    navigateToRoute({
+      page: 'devices',
+      selectedMonth,
+      selectedRecordId: recordId,
+      recordEnterpriseFilter: enterpriseId || 'all',
+      recordTypeFilter: 'all',
+      recordExecutorFilter: 'all',
+      recordTimeFilter: 'all',
+      recordStatusFilter: 'all',
+      recordQuickFilter: 'all',
+    })
+  }
+
   const openPage = (nextPage: PageKey) => {
     if (nextPage === 'dashboard') navigateToRoute({ page: 'dashboard' })
     else if (nextPage === 'tasks') navigateToRoute({ page: 'tasks', taskListScope, taskId: selectedTaskId || undefined, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter })
@@ -1312,6 +1478,9 @@ function App() {
     else if (nextPage === 'hazards') navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterpriseId || undefined, hazardEnterpriseId: hazardEnterpriseId || undefined, hazardListScope, selectedHazardId: selectedHazardId || undefined, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword: hazardKeyword || undefined, hazardQuickFilter })
     else if (nextPage === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined })
     else if (nextPage === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter })
+    else if (nextPage === 'users') navigateToRoute({ page: 'users', enterpriseId: selectedEnterpriseId, selectedMonth })
+    else if (nextPage === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', selectedMonth, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter })
+    else if (nextPage === 'bigscreen') navigateToRoute({ page: 'bigscreen', selectedMonth, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter })
     else navigateToRoute({ page: nextPage, enterpriseId: selectedEnterpriseId, selectedMonth })
   }
 
@@ -1758,7 +1927,132 @@ function App() {
             </div>
           )}
 
-          {page === 'scoreTrend' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">评分趋势页</div><div className="page-subtitle">按企业查看历史快照，不做覆盖，只追加新月份。</div></div><button className="btn btn-dark" onClick={buildSnapshot}>生成当前月份快照</button></div><div className="score-toolbar"><div className="score-toolbar-group"><div className="field-label">企业</div><Select value={selectedEnterpriseId} onChange={setSelectedEnterpriseId} options={entOptions} /></div><div className="score-toolbar-group"><div className="field-label">说明</div><div className="surface-outline"><div className="title-sm">{selectedEnterprise.name}</div><div className="small muted">已保存 {trendRows.length} 条评分历史</div></div></div></div><Card title="月度趋势" extra={<Badge tone="cyan">历史快照不覆盖</Badge>}><div className="stack">{trendRows.map(item => <div key={item.id} className="surface-outline"><div className="list-card-head"><div><div className="title-sm">{item.month}</div><div className="small muted">{item.generatedAt}</div></div><div className="inline-row"><Badge tone={item.levelColor}>{item.levelName}</Badge><div className="title-sm">{item.totalScore}</div></div></div><div className="spacer-sm" /><div className="progress-track"><div className="progress-bar progress-blue" style={{ width: `${item.totalScore}%` }} /></div><div className="score-trend-grid">{item.dimensionScores.map(dimension => <div key={dimension.dimensionId} className="mini-card"><div className="muted">{dimension.dimensionName}</div><div className="title-sm">{dimension.score}/{dimension.fullScore}</div></div>)}</div></div>)}</div></Card></div>}
+          {page === 'scoreTrend' && (
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">保险首页 / 风险分层页</div>
+                  <div className="page-subtitle">先看哪些企业值得重点看，再看服务覆盖和闭环质量，最后给出核保与续保辅助参考，帮助业务和风控快速形成判断。</div>
+                </div>
+                <Badge tone="blue">{selectedMonth}</Badge>
+              </div>
+
+              <Card title="顶部风险概览" extra={<Badge tone="amber">保险业务视角</Badge>}>
+                <div className="score-toolbar">
+                  <div className="score-toolbar-group">
+                    <div className="field-label">月份</div>
+                    <Select value={selectedMonth} onChange={setSelectedMonth} options={monthOptions} />
+                  </div>
+                  <div className="score-toolbar-group">
+                    <div className="field-label">地区</div>
+                    <Select value={insurerAreaFilter} onChange={setInsurerAreaFilter} options={insurerAreaOptions} />
+                  </div>
+                  <div className="score-toolbar-group">
+                    <div className="field-label">行业</div>
+                    <Select value={insurerIndustryFilter} onChange={setInsurerIndustryFilter} options={insurerIndustryOptions} />
+                  </div>
+                </div>
+                <div className="spacer-sm" />
+                <div className="grid-4">
+                  <StatCard title="高风险企业数" value={`${insurerOverview.highRiskCount}家`} subtitle="当前风险分层为 D 层" icon={ShieldAlert} />
+                  <StatCard title="重点关注企业数" value={`${insurerOverview.focusCount}家`} subtitle="建议重点跟踪与复核" icon={AlertTriangle} />
+                  <StatCard title="本月已生成快照企业数" value={`${insurerOverview.snapshotCount}家`} subtitle="可作为月度输出依据" icon={CalendarDays} />
+                  <StatCard title="服务覆盖率" value={`${insurerOverview.coverageRate}%`} subtitle={`建议复核企业 ${insurerOverview.manualReviewCount} 家`} icon={BarChart3} />
+                </div>
+              </Card>
+
+              <Card
+                title="企业风险分层区"
+                extra={
+                  <div className="task-quick-filters">
+                    {insurerTierOptions.map(item => (
+                      <button key={item.value} className={cn('task-quick-chip', insurerTierFilter === item.value && 'task-quick-chip-active')} onClick={() => setInsurerTierFilter(item.value)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              >
+                <Table
+                  columns={['企业名称', '当前分层', '主要风险原因', '最近快照时间', '未闭环隐患', '超期项', '最近服务时间', '操作']}
+                  rows={insuranceRows}
+                  renderRow={item => (
+                    <tr key={item.enterpriseId} className="clickable-row" onClick={() => openSnapshotEnterprise(item.enterpriseId, selectedMonth)}>
+                      <td className="cell strong wrap-cell">{item.enterpriseName}</td>
+                      <td><Badge tone={item.riskTier === 'D' ? 'red' : item.riskTier === 'C' ? 'amber' : item.riskTier === 'B' ? 'blue' : 'emerald'}>{item.riskTier}层</Badge></td>
+                      <td className="wrap-cell">{item.note}</td>
+                      <td>{item.snapshotDate}</td>
+                      <td>{item.openHazardCount}</td>
+                      <td>{item.overdueCount}</td>
+                      <td>{item.lastServiceDate}</td>
+                      <td>
+                        <div className="button-row">
+                          <button className="btn btn-xs btn-light" onClick={event => { event.stopPropagation(); navigateToRoute({ page: 'detail', enterpriseId: item.enterpriseId, selectedMonth }) }}>企业画像</button>
+                          <button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: item.enterpriseId, selectedSnapshotId: item.snapshotId }) }}>查看快照</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                />
+              </Card>
+
+              <div className="workspace-two-col">
+                <Card title="重点关注企业区" extra={<Badge tone="red">优先进入人工复核</Badge>}>
+                  <div className="risk-list">
+                    {insurerFocusRows.map(item => (
+                      <button key={item.enterpriseId} className="risk-item" onClick={() => navigateToRoute({ page: 'detail', enterpriseId: item.enterpriseId, selectedMonth })}>
+                        <div className="risk-item-head">
+                          <div>
+                            <div className="title-sm">{item.enterpriseName}</div>
+                            <div className="small muted">最近服务时间：{item.lastServiceDate}</div>
+                          </div>
+                          <div className="inline-row">
+                            <Badge tone={item.riskTier === 'D' ? 'red' : item.riskTier === 'C' ? 'amber' : 'blue'}>{item.riskTier}层</Badge>
+                            {item.manualReviewSuggested && <Badge tone="red">建议人工复核</Badge>}
+                          </div>
+                        </div>
+                        <div className="risk-item-grid">
+                          <div className="surface-box"><div className="muted">未闭环隐患数</div><div className="title-sm">{item.openHazardCount}</div></div>
+                          <div className="surface-box"><div className="muted">超期项数</div><div className="title-sm">{item.overdueCount}</div></div>
+                        </div>
+                        <div className="body mt-8">建议动作：{item.manualReviewSuggested ? '建议进入人工复核并复盘服务留痕。' : '建议持续跟踪月度服务和隐患闭环情况。'}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+
+                <div className="stack-lg">
+                  <Card title="服务覆盖与质量区" extra={<Badge tone="cyan">月度服务视角</Badge>}>
+                    <div className="delivery-grid">
+                      <div className="mini-card"><div className="muted">本月覆盖企业数</div><div className="title-sm">{insurerServiceSummary.coveredCount} 家</div></div>
+                      <div className="mini-card"><div className="muted">任务完成率</div><div className="title-sm">{insurerServiceSummary.completionRate}%</div></div>
+                      <div className="mini-card"><div className="muted">闭环率</div><div className="title-sm">{insurerServiceSummary.closureRate}%</div></div>
+                      <div className="mini-card"><div className="muted">月度服务缺口</div><div className="title-sm">{insurerServiceSummary.serviceGap} 家</div></div>
+                    </div>
+                  </Card>
+
+                  <Card title="核保辅助参考区" extra={<Badge tone="violet">辅助参考，不替代人工判断</Badge>}>
+                    <div className="stack">
+                      {insurerReviewRows.map(item => (
+                        <div key={item.enterpriseId} className="surface-outline">
+                          <div className="list-card-head">
+                            <div>
+                              <div className="title-sm">{item.enterpriseName}</div>
+                              <div className="small muted">{item.riskReason}</div>
+                            </div>
+                            <Badge tone={item.manualReviewSuggested ? 'red' : 'emerald'}>{item.manualReviewSuggested ? '建议人工复核' : '常规跟进'}</Badge>
+                          </div>
+                          <div className="body mt-8">风险变化趋势：{item.riskTrend}</div>
+                          <div className="body">服务执行情况摘要：巡检覆盖率 {item.serviceCoverageRate}% ，闭环率 {item.closureRate}% 。</div>
+                          <div className="body">备注说明：{item.note}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          )}
 
           {page === 'scoreConfig' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">评分机制配置页</div><div className="page-subtitle">支持评分方案、维度、规则、等级区间的试用态配置。</div></div><button className="btn btn-dark" onClick={() => setMessage('评分配置已保存在前端试用态')}>保存配置</button></div><Card title="评分方案" extra={<Badge tone="violet">试用版</Badge>}><Table columns={['方案名称', '版本', '状态', '生效时间', '快照策略', '描述', '操作']} rows={schemeRows} renderRow={(item: ScoreScheme) => <tr key={item.id}><td className="cell strong">{item.name}</td><td>{item.version}</td><td><StatusBadge value={item.status} /></td><td>{item.effectiveFrom}</td><td>{item.snapshotPolicy}</td><td className="wrap-cell">{item.description}</td><td><button className="btn btn-xs btn-light" onClick={() => { setSchemeRows(prev => prev.map(row => ({ ...row, status: row.id === item.id ? '启用' : '草稿' }))); setMessage(`已切换启用方案：${item.name}`) }}>设为启用</button></td></tr>} /></Card><div className="two-col"><Card title="评分维度" extra={<Badge tone="cyan">当前方案</Badge>}><Table columns={['维度编码', '维度名称', '权重', '排序', '说明']} rows={dimensionRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreDimension) => <tr key={item.id}><td>{item.code}</td><td className="cell strong">{item.name}</td><td><input className="inline-input" type="number" value={item.weight} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} /></td><td><input className="inline-input" type="number" value={item.order} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, order: Number(event.target.value) } : row))} /></td><td className="wrap-cell"><input className="inline-input" value={item.note} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, note: event.target.value } : row))} /></td></tr>} /></Card><Card title="评分等级区间" extra={<Badge tone="amber">快照按生成时锁定</Badge>}><Table columns={['等级', '最小值', '最大值', '颜色', '说明']} rows={levelRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreLevelRange) => <tr key={item.id}><td className="cell strong">{item.name}</td><td><input className="inline-input" type="number" value={item.min} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, min: Number(event.target.value) } : row))} /></td><td><input className="inline-input" type="number" value={item.max} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, max: Number(event.target.value) } : row))} /></td><td><select value={item.color} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, color: event.target.value as Tone } : row))}>{(['emerald', 'blue', 'amber', 'red'] as Tone[]).map(tone => <option key={tone} value={tone}>{tone}</option>)}</select></td><td className="wrap-cell"><input className="inline-input" value={item.description} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, description: event.target.value } : row))} /></td></tr>} /></Card></div><Card title="评分规则" extra={<Badge tone="blue">字段已预留真实接入能力</Badge>}><Table columns={['规则名称', '指标编码', '所属维度', '数据来源字段', '统计周期', '计算方式', '分值上限', '启用状态', '适用企业类型']} rows={ruleRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreRule) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.metricCode}</td><td>{dimensionRows.find(dimension => dimension.id === item.dimensionId)?.name || '-'}</td><td className="wrap-cell">{item.dataSourceField}</td><td>{item.statPeriod}</td><td>{item.calcMethod}</td><td>{item.maxScore}</td><td>{item.enabled ? <Badge tone="emerald">启用</Badge> : <Badge tone="slate">停用</Badge>}</td><td className="wrap-cell">{item.enterpriseTypes.join(' / ')}</td></tr>} /></Card></div>}
 
@@ -2095,9 +2389,248 @@ function App() {
             </div>
           )}
 
-          {page === 'users' && <div className="stack-lg"><div className="two-col">{(['企业', '安全服务商', '保险平台', '应急局'] as Perspective[]).map(group => <Card key={group} title={`${group}角色成员`} extra={<PerspectiveBadge value={group} />}><Table columns={['姓名', '所属单位', '岗位', '数据范围', '状态', '最近登录']} rows={users.filter(item => item.group === group)} renderRow={(item: UserItem) => <tr key={item.id}><td className="cell strong">{item.name}</td><td>{item.org}</td><td>{item.role}</td><td>{item.scope}</td><td><StatusBadge value={item.status} /></td><td>{item.lastLogin}</td></tr>} /></Card>)}</div><Card title="数据分层可见规则" extra={<Badge tone="cyan">默认可见范围</Badge>}><Table columns={['角色', '可见内容', '默认不可见']} rows={privacyRules} renderRow={item => <tr key={item.audience}><td className="cell strong">{item.audience}</td><td className="wrap-cell">{item.visible}</td><td className="wrap-cell">{item.hidden}</td></tr>} /></Card></div>}
+          {page === 'users' && (
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">企业首页</div>
+                  <div className="page-subtitle">围绕企业当天待办、整改推进和近期服务结果来组织页面，让企业一进来就知道当前该处理什么、哪些事项最着急。</div>
+                </div>
+                <div className="button-row">
+                  <Select value={selectedEnterpriseId} onChange={setSelectedEnterpriseId} options={entOptions} />
+                  <Select value={selectedMonth} onChange={setSelectedMonth} options={monthOptions} />
+                </div>
+              </div>
 
-          {page === 'bigscreen' && <Card title="演示总览" extra={<Badge tone="amber">本次不扩展大屏</Badge>}><div className="body">本轮只做评分试用版能力，没有新增复杂大屏；保留该入口仅用于说明本次边界。</div></Card>}
+              <div className="grid-4">
+                <StatCard title="今日待办数" value={`${enterpriseHomeTodos.waitingTasks.length}项`} subtitle="待执行、执行中和超期事项" icon={ClipboardCheck} />
+                <StatCard title="待整改隐患数" value={`${portraitHazardRows.length}项`} subtitle="当前企业未闭环隐患" icon={FileWarning} />
+                <StatCard title="超期整改数" value={`${portraitOverdueHazardCount}项`} subtitle="需优先催办和补证" icon={AlertTriangle} />
+                <StatCard title="本月巡检覆盖率" value={`${portraitInspectionCoverageRate}%`} subtitle="覆盖越高，日常管理越稳定" icon={ShieldCheck} />
+                <StatCard title="本月服务次数" value={`${portraitMonthlyServiceCount}次`} subtitle="巡检、培训、点检与复查动作" icon={Wrench} />
+                <StatCard title="当前风险等级" value={`${selectedEnterprise.risk}风险`} subtitle="帮助企业快速识别当前压力点" icon={ShieldAlert} />
+              </div>
+
+              <div className="workspace-two-col">
+                <div className="stack-lg">
+                  <Card title="我的待办区" extra={<Badge tone="blue">优先看即将到期和待补材料</Badge>}>
+                    <div className="distribution-grid">
+                      <div className="surface-outline">
+                        <div className="section-subtitle">待执行任务</div>
+                        <div className="todo-list">
+                          {enterpriseHomeTodos.waitingTasks.map(item => (
+                            <button key={item.taskId} className="todo-item todo-action" onClick={() => navigateToRoute({ page: 'tasks', taskId: item.taskId, taskListScope: 'all', taskEnterpriseFilter: selectedEnterprise.id, taskTypeFilter: 'all', taskStatusFilter: 'all', taskPriorityFilter: 'all', taskTimeFilter: 'all', taskAssigneeFilter: 'all', taskQuickFilter: 'all' })}>
+                              {item.taskName} · 截止 {item.dueTime}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="surface-outline">
+                        <div className="section-subtitle">待确认整改</div>
+                        <div className="todo-list">
+                          {enterpriseHomeTodos.pendingRectification.map(item => (
+                            <button key={item.hazardId} className="todo-item todo-action" onClick={() => navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterprise.id, hazardEnterpriseId: selectedEnterprise.id, selectedHazardId: item.hazardId, hazardListScope: 'all' })}>
+                              {item.hazardName} · {item.rectificationStatus}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="surface-outline">
+                        <div className="section-subtitle">待上传材料</div>
+                        <div className="todo-list">
+                          {enterpriseHomeTodos.pendingMaterials.map(item => (
+                            <button key={item.recordId} className="todo-item todo-action" onClick={() => openRecordLedger(item.recordId, selectedEnterprise.id)}>
+                              {item.sourceTaskName} · 缺 {item.missingEvidenceCount} 项证据
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="surface-outline">
+                        <div className="section-subtitle">即将到期事项</div>
+                        <div className="todo-list">
+                          {enterpriseHomeTodos.upcomingMatters.map(item => (
+                            <button key={item.taskId} className="todo-item todo-action" onClick={() => navigateToRoute({ page: 'tasks', taskId: item.taskId, taskListScope: 'all', taskEnterpriseFilter: selectedEnterprise.id, taskTypeFilter: 'all', taskStatusFilter: 'all', taskPriorityFilter: 'all', taskTimeFilter: 'all', taskAssigneeFilter: 'all', taskQuickFilter: 'all' })}>
+                              {item.taskName} · {item.dueTime}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card title="隐患整改进度区" extra={<Badge tone={portraitOverdueHazardCount > 0 ? 'red' : 'emerald'}>{portraitOverdueHazardCount > 0 ? '存在超期整改' : '当前无超期整改'}</Badge>}>
+                    {portraitHazardRows.length ? (
+                      <Table
+                        columns={['隐患名称', '整改责任人', '整改期限', '当前状态', '复查结果', '操作']}
+                        rows={portraitHazardRows}
+                        renderRow={item => (
+                          <tr key={item.id} className="clickable-row" onClick={() => navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterprise.id, hazardEnterpriseId: selectedEnterprise.id, selectedHazardId: item.id, hazardListScope: 'all' })}>
+                            <td className="cell strong wrap-cell">{item.title}</td>
+                            <td>{item.owner}</td>
+                            <td>{item.deadline}</td>
+                            <td><StatusBadge value={item.status} /></td>
+                            <td>{item.status === '已闭环' ? '复查通过' : item.status === '待复查' ? '待复查' : '未完成复查'}</td>
+                            <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterprise.id, hazardEnterpriseId: selectedEnterprise.id, selectedHazardId: item.id, hazardListScope: 'all' }) }}>查看详情</button></td>
+                          </tr>
+                        )}
+                      />
+                    ) : (
+                      <div className="empty-state">当前企业暂无未闭环隐患，整体整改状态较稳定。</div>
+                    )}
+                  </Card>
+                </div>
+
+                <div className="stack-lg">
+                  <Card title="最近服务记录区" extra={<Badge tone="cyan">最近服务时间：{latestServiceDateByEnterprise[selectedEnterprise.id]}</Badge>}>
+                    <div className="portrait-service-list">
+                      {enterpriseRecentRecords.map(item => (
+                        <button key={item.recordId} className="portrait-service-item" onClick={() => openRecordLedger(item.recordId, selectedEnterprise.id)}>
+                          <div className="list-card-head">
+                            <div>
+                              <div className="title-sm">{item.serviceType}</div>
+                              <div className="small muted">{item.executedAt} · {item.executor}</div>
+                            </div>
+                            <Badge tone={item.recordStatus === '证据完整' ? 'emerald' : item.recordStatus === '待补证据' ? 'amber' : 'red'}>{item.recordStatus}</Badge>
+                          </div>
+                          <div className="body">{item.resultSummary}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card title="月度变化简报区" extra={<Badge tone="violet">最近 3 个月</Badge>}>
+                    <div className="trend-list">
+                      {enterpriseBriefRows.map(item => (
+                        <div key={`${selectedEnterprise.id}-${item.month}`} className="trend-item">
+                          <div className="list-card-head">
+                            <div>
+                              <div className="title-sm">{item.month}</div>
+                              <div className="small muted">{item.note}</div>
+                            </div>
+                            <div className="inline-row">
+                              <Badge tone={item.levelColor}>{item.levelName}</Badge>
+                              <RiskBadge level={item.riskLevel} />
+                            </div>
+                          </div>
+                          <div className="trend-metrics">
+                            <div className="mini-card"><div className="muted">风险等级变化</div><div className="title-sm">{item.riskLevel}风险</div></div>
+                            <div className="mini-card"><div className="muted">得分变化</div><div className="title-sm">{item.score}</div></div>
+                            <div className="mini-card"><div className="muted">闭环率变化</div><div className="title-sm">{item.closedRate}%</div></div>
+                          </div>
+                          <div className="body">重点提示：{item.hazardChange}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {page === 'bigscreen' && (
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">应急监管视图</div>
+                  <div className="page-subtitle">从重点企业、超期整改和过程留痕三个角度组织页面，方便监管、园区和治理方快速抽查“是否可追踪、是否闭环、是否留痕”。</div>
+                </div>
+                <div className="button-row">
+                  <Select value={selectedMonth} onChange={setSelectedMonth} options={monthOptions} />
+                  <Select value={regulatorAreaFilter} onChange={setRegulatorAreaFilter} options={regulatorAreaOptions} />
+                  <Select value={regulatorIndustryFilter} onChange={setRegulatorIndustryFilter} options={regulatorIndustryOptions} />
+                  <Select value={regulatorStatusFilter} onChange={setRegulatorStatusFilter} options={regulatorStatusOptions} />
+                </div>
+              </div>
+
+              <div className="grid-4">
+                <StatCard title="重点企业数" value={`${regulatorOverview.focusEnterpriseCount}家`} subtitle="需持续关注和抽查" icon={Building2} />
+                <StatCard title="超期整改数" value={`${regulatorOverview.overdueCount}项`} subtitle="超期事项需重点盯办" icon={AlertTriangle} />
+                <StatCard title="未闭环隐患数" value={`${regulatorOverview.openHazardCount}项`} subtitle="反映当前整改压力" icon={FileWarning} />
+                <StatCard title="本月闭环率" value={`${regulatorOverview.monthlyClosureRate}%`} subtitle={`抽查覆盖率 ${regulatorOverview.spotCheckRate}%`} icon={ShieldCheck} />
+              </div>
+
+              <div className="workspace-two-col">
+                <Card title="重点企业跟踪区" extra={<Badge tone="amber">监管持续跟踪</Badge>}>
+                  <Table
+                    columns={['企业名称', '当前风险等级', '未闭环隐患数', '最近服务时间', '当前状态', '操作']}
+                    rows={regulatorEnterpriseRows}
+                    renderRow={item => (
+                      <tr key={item.enterpriseId} className="clickable-row" onClick={() => navigateToRoute({ page: 'detail', enterpriseId: item.enterpriseId, selectedMonth })}>
+                        <td className="cell strong wrap-cell">{item.enterpriseName}</td>
+                        <td><RiskBadge level={item.riskLevel} /></td>
+                        <td>{item.openHazardCount}</td>
+                        <td>{item.lastServiceDate}</td>
+                        <td><Badge tone={item.currentStatus === '高风险关注' ? 'red' : item.currentStatus === '整改中' ? 'amber' : 'emerald'}>{item.currentStatus}</Badge></td>
+                        <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); navigateToRoute({ page: 'detail', enterpriseId: item.enterpriseId, selectedMonth }) }}>查看企业</button></td>
+                      </tr>
+                    )}
+                  />
+                </Card>
+
+                <Card title="超期整改台账区" extra={<Badge tone="red">{regulatorOverdueRows.length} 项超期</Badge>}>
+                  {regulatorOverdueRows.length ? (
+                    <Table
+                      columns={['隐患名称', '所属企业', '责任人', '整改期限', '超期天数', '当前状态', '操作']}
+                      rows={regulatorOverdueRows}
+                      renderRow={item => (
+                        <tr key={item.hazardId} className="clickable-row" onClick={() => navigateToRoute({ page: 'hazards', enterpriseId: item.enterpriseId, hazardEnterpriseId: item.enterpriseId, selectedHazardId: item.hazardId, hazardListScope: 'overdueOpen' })}>
+                          <td className="cell strong wrap-cell">{item.hazardName}</td>
+                          <td className="wrap-cell">{item.enterpriseName}</td>
+                          <td>{item.responsiblePerson}</td>
+                          <td>{item.rectificationDeadline}</td>
+                          <td>{item.overdueDays} 天</td>
+                          <td><StatusBadge value={item.status} /></td>
+                          <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); navigateToRoute({ page: 'hazards', enterpriseId: item.enterpriseId, hazardEnterpriseId: item.enterpriseId, selectedHazardId: item.hazardId, hazardListScope: 'overdueOpen' }) }}>查看详情</button></td>
+                        </tr>
+                      )}
+                    />
+                  ) : (
+                    <div className="empty-state">当前筛选范围内没有超期整改事项。</div>
+                  )}
+                </Card>
+              </div>
+
+              <div className="workspace-two-col">
+                <Card title="流程留痕抽查区" extra={<Badge tone="blue">抽查最近记录与证据</Badge>}>
+                  <Table
+                    columns={['最近任务记录', '企业', '现场证据数量', '整改材料', '复查结论', '操作']}
+                    rows={regulatorTraceRows}
+                    renderRow={item => (
+                      <tr key={item.recordId} className="clickable-row" onClick={() => navigateToRoute({ page: 'tasks', taskId: item.sourceTaskId, taskListScope: 'all', taskEnterpriseFilter: item.enterpriseId, taskTypeFilter: 'all', taskStatusFilter: 'all', taskPriorityFilter: 'all', taskTimeFilter: 'all', taskAssigneeFilter: 'all', taskQuickFilter: 'all' })}>
+                        <td className="cell strong wrap-cell">{item.sourceTaskName}</td>
+                        <td className="wrap-cell">{item.enterpriseName}</td>
+                        <td>{item.evidenceCount}</td>
+                        <td>{item.missingEvidenceCount > 0 ? `待补 ${item.missingEvidenceCount} 项` : '材料齐套'}</td>
+                        <td>{item.recordStatus === '异常记录' ? '需继续跟踪' : '当前留痕可查'}</td>
+                        <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); navigateToRoute({ page: 'tasks', taskId: item.sourceTaskId, taskListScope: 'all', taskEnterpriseFilter: item.enterpriseId, taskTypeFilter: 'all', taskStatusFilter: 'all', taskPriorityFilter: 'all', taskTimeFilter: 'all', taskAssigneeFilter: 'all', taskQuickFilter: 'all' }) }}>查看任务</button></td>
+                      </tr>
+                    )}
+                  />
+                </Card>
+
+                <Card title="月度监管简报区" extra={<Badge tone="violet">近 3 个月</Badge>}>
+                  <div className="trend-list">
+                    {regulatorBriefRows.map(item => (
+                      <div key={item.month} className="trend-item">
+                        <div className="list-card-head">
+                          <div>
+                            <div className="title-sm">{item.month}</div>
+                            <div className="small muted">{item.note}</div>
+                          </div>
+                          <Badge tone={item.highRiskCount > 2 ? 'red' : item.highRiskCount > 0 ? 'amber' : 'emerald'}>{item.highRiskCount} 家高风险</Badge>
+                        </div>
+                        <div className="trend-metrics">
+                          <div className="mini-card"><div className="muted">闭环率变化</div><div className="title-sm">{item.closureRate}%</div></div>
+                          <div className="mini-card"><div className="muted">高风险企业变化</div><div className="title-sm">{item.highRiskCount} 家</div></div>
+                          <div className="mini-card"><div className="muted">重点事项备注</div><div className="title-sm">{item.note}</div></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

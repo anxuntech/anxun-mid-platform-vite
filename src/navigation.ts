@@ -52,13 +52,19 @@ export type NavigationState = {
   recordTimeFilter?: string
   recordStatusFilter?: string
   recordQuickFilter?: string
+  insurerAreaFilter?: string
+  insurerIndustryFilter?: string
+  insurerTierFilter?: string
+  regulatorAreaFilter?: string
+  regulatorIndustryFilter?: string
+  regulatorStatusFilter?: string
 }
 
 const workspacePathMap: Record<Exclude<RoutePage, 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards' | 'scoreDetail' | 'devices'>, string> = {
-  scoreTrend: '/workspace/score-trend',
+  scoreTrend: '/insurer',
   scoreConfig: '/workspace/score-config',
-  users: '/workspace/users',
-  bigscreen: '/workspace/bigscreen',
+  users: '/enterprise-home',
+  bigscreen: '/regulator',
 }
 
 const workspaceSlugMap = Object.fromEntries(Object.entries(workspacePathMap).map(([page, path]) => [path.replace('/workspace/', ''), page as RoutePage]))
@@ -126,6 +132,22 @@ export const buildAppHref = (route: NavigationState): string => {
     addParam(params, 'status', route.recordStatusFilter)
     addParam(params, 'quick', route.recordQuickFilter)
     addParam(params, 'month', route.selectedMonth)
+  } else if (route.page === 'users') {
+    pathname = '/enterprise-home'
+    addParam(params, 'enterpriseId', route.enterpriseId)
+    addParam(params, 'month', route.selectedMonth)
+  } else if (route.page === 'scoreTrend') {
+    pathname = '/insurer'
+    addParam(params, 'month', route.selectedMonth)
+    addParam(params, 'area', route.insurerAreaFilter)
+    addParam(params, 'industry', route.insurerIndustryFilter)
+    addParam(params, 'tier', route.insurerTierFilter)
+  } else if (route.page === 'bigscreen') {
+    pathname = '/regulator'
+    addParam(params, 'month', route.selectedMonth)
+    addParam(params, 'area', route.regulatorAreaFilter)
+    addParam(params, 'industry', route.regulatorIndustryFilter)
+    addParam(params, 'status', route.regulatorStatusFilter)
   } else {
     pathname = workspacePathMap[route.page]
     addParam(params, 'enterpriseId', route.enterpriseId)
@@ -173,6 +195,12 @@ const parseLegacyState = (params: URLSearchParams): NavigationState | null => {
     recordTimeFilter: params.get('recordTimeFilter') || undefined,
     recordStatusFilter: params.get('recordStatusFilter') || undefined,
     recordQuickFilter: params.get('recordQuickFilter') || undefined,
+    insurerAreaFilter: params.get('insurerAreaFilter') || undefined,
+    insurerIndustryFilter: params.get('insurerIndustryFilter') || undefined,
+    insurerTierFilter: params.get('insurerTierFilter') || undefined,
+    regulatorAreaFilter: params.get('regulatorAreaFilter') || undefined,
+    regulatorIndustryFilter: params.get('regulatorIndustryFilter') || undefined,
+    regulatorStatusFilter: params.get('regulatorStatusFilter') || undefined,
   }
 }
 
@@ -242,6 +270,31 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       recordStatusFilter: params.get('status') || undefined,
       recordQuickFilter: params.get('quick') || undefined,
       selectedMonth: params.get('month') || undefined,
+    }
+  }
+  if (pathname === '/enterprise-home' || pathname === '/workspace/users') {
+    return {
+      page: 'users',
+      enterpriseId: params.get('enterpriseId') || undefined,
+      selectedMonth: params.get('month') || undefined,
+    }
+  }
+  if (pathname === '/insurer' || pathname === '/workspace/score-trend') {
+    return {
+      page: 'scoreTrend',
+      selectedMonth: params.get('month') || undefined,
+      insurerAreaFilter: params.get('area') || undefined,
+      insurerIndustryFilter: params.get('industry') || undefined,
+      insurerTierFilter: params.get('tier') || undefined,
+    }
+  }
+  if (pathname === '/regulator' || pathname === '/workspace/bigscreen') {
+    return {
+      page: 'bigscreen',
+      selectedMonth: params.get('month') || undefined,
+      regulatorAreaFilter: params.get('area') || undefined,
+      regulatorIndustryFilter: params.get('industry') || undefined,
+      regulatorStatusFilter: params.get('status') || undefined,
     }
   }
   if (pathname.startsWith('/workspace/')) {
