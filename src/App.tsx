@@ -70,6 +70,24 @@ type AppRouteState = {
   taskQuickFilter?: TaskQuickFilter
   selectedMonth?: string
   detailSnapshotMonth?: string
+  selectedHazardId?: string
+  hazardLevelFilter?: string
+  hazardStatusFilter?: string
+  hazardReviewFilter?: string
+  hazardOverdueFilter?: string
+  hazardTimeFilter?: string
+  hazardKeyword?: string
+  hazardQuickFilter?: string
+  selectedSnapshotId?: string
+  snapshotEnterpriseFilter?: string
+  snapshotRiskFilter?: string
+  selectedRecordId?: string
+  recordEnterpriseFilter?: string
+  recordTypeFilter?: string
+  recordExecutorFilter?: string
+  recordTimeFilter?: string
+  recordStatusFilter?: string
+  recordQuickFilter?: string
 }
 
 type Enterprise = { id: string; name: string; industry: string; area: string; leader: string; phone: string; score: number; level: Level; risk: Risk; tags: string[]; deviceCount: number }
@@ -245,12 +263,12 @@ const perspectives = [
 const navItems = [
   { key: 'dashboard' as PageKey, label: '总览首页', icon: Gauge },
   { key: 'enterprises' as PageKey, label: '企业列表', icon: Building2 },
-  { key: 'detail' as PageKey, label: '企业详情', icon: Factory },
-  { key: 'scoreDetail' as PageKey, label: '企业评分详情', icon: Calculator },
+  { key: 'detail' as PageKey, label: '企业画像', icon: Factory },
+  { key: 'scoreDetail' as PageKey, label: '月度快照', icon: Calculator },
   { key: 'scoreTrend' as PageKey, label: '评分趋势', icon: LineChart },
   { key: 'scoreConfig' as PageKey, label: '评分机制配置', icon: Settings2 },
   { key: 'hazards' as PageKey, label: '隐患闭环', icon: FileWarning },
-  { key: 'devices' as PageKey, label: '设备物联', icon: Radio },
+  { key: 'devices' as PageKey, label: '数据台账', icon: Radio },
   { key: 'tasks' as PageKey, label: '任务中心', icon: ClipboardCheck },
   { key: 'users' as PageKey, label: '人员管理', icon: Users },
   { key: 'bigscreen' as PageKey, label: '演示总览', icon: Monitor },
@@ -381,6 +399,24 @@ function App() {
   const [taskQuickFilter, setTaskQuickFilter] = useState<TaskQuickFilter>('all')
   const [taskUploadedEvidence, setTaskUploadedEvidence] = useState<Record<string, UploadedTaskEvidence[]>>({})
   const [detailSnapshotMonth, setDetailSnapshotMonth] = useState<string | null>(null)
+  const [selectedHazardId, setSelectedHazardId] = useState('')
+  const [hazardLevelFilter, setHazardLevelFilter] = useState('all')
+  const [hazardStatusFilter, setHazardStatusFilter] = useState('all')
+  const [hazardReviewFilter, setHazardReviewFilter] = useState('all')
+  const [hazardOverdueFilter, setHazardOverdueFilter] = useState('all')
+  const [hazardTimeFilter, setHazardTimeFilter] = useState('all')
+  const [hazardKeyword, setHazardKeyword] = useState('')
+  const [hazardQuickFilter, setHazardQuickFilter] = useState('all')
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState('')
+  const [snapshotEnterpriseFilter, setSnapshotEnterpriseFilter] = useState('all')
+  const [snapshotRiskFilter, setSnapshotRiskFilter] = useState('all')
+  const [selectedRecordId, setSelectedRecordId] = useState('')
+  const [recordEnterpriseFilter, setRecordEnterpriseFilter] = useState('all')
+  const [recordTypeFilter, setRecordTypeFilter] = useState('all')
+  const [recordExecutorFilter, setRecordExecutorFilter] = useState('all')
+  const [recordTimeFilter, setRecordTimeFilter] = useState('all')
+  const [recordStatusFilter, setRecordStatusFilter] = useState('all')
+  const [recordQuickFilter, setRecordQuickFilter] = useState('all')
   const [dashboardEnterpriseFilter, setDashboardEnterpriseFilter] = useState('all')
   const [dashboardStatusFilter, setDashboardStatusFilter] = useState('all')
   const [dashboardPriorityFilter, setDashboardPriorityFilter] = useState<'all' | TaskPriority>('all')
@@ -678,6 +714,276 @@ function App() {
   const taskScopeDescription = taskListScope === 'today' ? '当前展示今天需要优先调度和执行的任务。' : taskListScope === 'weekCompleted' ? '当前展示本周已闭环任务，便于复盘交付结果。' : taskListScope === 'monthly' ? '当前展示本月任务推进情况，便于统筹交付。' : '当前展示全部任务，可按企业、状态、执行人等条件调度。'
   const activeHazardEnterpriseName = hazardEnterpriseId ? enterprises.find(item => item.id === hazardEnterpriseId)?.name || '' : ''
   const selectedTaskUploads = selectedTask ? taskUploadedEvidence[selectedTask.taskId] || [] : []
+  const hazardLevelOptions = [{ value: 'all', label: '全部等级' }, ...(['高', '中', '低'] as Risk[]).map(item => ({ value: item, label: `${item}风险` }))]
+  const hazardStatusOptions = [{ value: 'all', label: '全部整改状态' }, ...(['待整改', '整改中', '待复查', '已闭环'] as HazardStatus[]).map(item => ({ value: item, label: item }))]
+  const hazardReviewOptions = [
+    { value: 'all', label: '全部复查状态' },
+    { value: '待复查', label: '待复查' },
+    { value: '已复查', label: '已复查' },
+    { value: '未进入复查', label: '未进入复查' },
+  ]
+  const hazardOverdueOptions = [
+    { value: 'all', label: '全部时效' },
+    { value: 'yes', label: '已超期' },
+    { value: 'no', label: '未超期' },
+  ]
+  const hazardTimeOptions = [
+    { value: 'all', label: '全部时间' },
+    { value: 'last7days', label: '近 7 天' },
+    { value: 'thisMonth', label: '本月' },
+    { value: 'closedThisMonth', label: '本月闭环' },
+  ]
+  const snapshotRiskOptions = [{ value: 'all', label: '全部风险等级' }, ...(['高', '中', '低'] as Risk[]).map(item => ({ value: item, label: `${item}风险` }))]
+  const recordTypeOptions = [{ value: 'all', label: '全部服务类型' }, ...Array.from(new Set(taskCenterRows.map(item => item.taskType))).map(item => ({ value: item, label: item }))]
+  const recordExecutorOptions = [{ value: 'all', label: '全部执行人' }, ...Array.from(new Set(taskCenterRows.map(item => item.assignee))).map(item => ({ value: item, label: item }))]
+  const recordTimeOptions = [
+    { value: 'all', label: '全部时间' },
+    { value: 'thisMonth', label: '本月' },
+    { value: 'last7days', label: '近 7 天' },
+    { value: 'last30days', label: '近 30 天' },
+  ]
+  const recordStatusOptions = [
+    { value: 'all', label: '全部状态' },
+    { value: '证据完整', label: '证据完整' },
+    { value: '待补证据', label: '待补证据' },
+    { value: '异常记录', label: '异常记录' },
+  ]
+  const hazardRowsDetailed = useMemo(() => {
+    return hazards
+      .map((item, index) => {
+        const enterprise = enterprises.find(ent => ent.id === item.enterpriseId) || enterprises[0]
+        const sourceTask = taskCenterRows.find(task => task.relatedHazardIds.includes(item.id) || task.enterpriseId === item.enterpriseId)
+        const rectificationStatus =
+          item.status === '已闭环'
+            ? '整改已完成'
+            : item.status === '待复查'
+              ? '整改已提交待复查'
+              : item.status === '整改中'
+                ? '整改推进中'
+                : '待启动整改'
+        const reviewStatus = item.status === '待复查' ? '待复查' : item.status === '已闭环' ? '已复查' : '未进入复查'
+        const isOverdue = item.status !== '已闭环' && item.deadline < dashboardToday
+        const evidenceFiles = [
+          { id: `${item.id}-evi-1`, title: '隐患现场照片', category: '现场图片' as const, time: item.foundAt, description: `${item.title} 现场拍摄留痕。` },
+          { id: `${item.id}-evi-2`, title: '整改通知单', category: '过程记录' as const, time: `${item.deadline} 09:00`, description: `已向${enterprise.name}下达整改要求和责任分工。` },
+          { id: `${item.id}-evi-3`, title: item.status === '已闭环' ? '闭环证明' : '整改过程记录', category: '整改证明' as const, time: `${item.deadline} 17:00`, description: item.status === '已闭环' ? '已完成复查签认与闭环归档。' : '当前整改过程已持续跟进。' },
+        ]
+        const rectificationRecords = [
+          { id: `${item.id}-rect-1`, time: `${item.foundAt.slice(0, 10)} 18:00`, actor: enterprise.leader, action: '确认整改责任', note: `由${enterprise.leader}牵头推进${item.title}整改。` },
+          { id: `${item.id}-rect-2`, time: `${item.deadline} 10:30`, actor: '安全员', action: item.status === '待整改' ? '制定整改计划' : '提交整改证明', note: item.status === '待整改' ? '已明确整改措施、物料和时限。' : '已上传整改前后对比照片和说明。' },
+        ]
+        const reviewRecords =
+          item.status === '待复查' || item.status === '已闭环'
+            ? [
+                { id: `${item.id}-review-1`, time: `${item.deadline} 16:00`, actor: latestProviderByEnterprise[item.enterpriseId], action: '安排复查', note: '已安排复查人员和到场时间。' },
+                { id: `${item.id}-review-2`, time: item.status === '已闭环' ? `${item.deadline} 17:30` : `${item.deadline} 17:00`, actor: latestProviderByEnterprise[item.enterpriseId], action: item.status === '已闭环' ? '复查通过' : '待复查确认', note: item.status === '已闭环' ? '现场复查通过，形成闭环结论。' : '复查资料已齐套，等待最终确认。' },
+              ]
+            : []
+        const timeline = [
+          { id: `${item.id}-tl-1`, title: '任务发现', time: item.foundAt, note: `来源：${item.source}` , tone: 'blue' as Tone, evidences: [evidenceFiles[0]]},
+          { id: `${item.id}-tl-2`, title: '隐患上报', time: `${item.foundAt.slice(0, 10)} 17:20`, note: '已形成问题清单并明确责任人。', tone: 'amber' as Tone, evidences: [evidenceFiles[1]]},
+          { id: `${item.id}-tl-3`, title: '整改提交', time: `${item.deadline} 10:30`, note: rectificationStatus, tone: item.status === '待整改' ? 'slate' as Tone : 'blue' as Tone, evidences: [evidenceFiles[2]]},
+          { id: `${item.id}-tl-4`, title: '复查确认', time: `${item.deadline} 16:30`, note: reviewStatus, tone: reviewStatus === '已复查' ? 'emerald' as Tone : reviewStatus === '待复查' ? 'violet' as Tone : 'slate' as Tone, evidences: reviewRecords.length ? [evidenceFiles[2]] : []},
+          { id: `${item.id}-tl-5`, title: '闭环归档', time: item.status === '已闭环' ? `${item.deadline} 18:00` : '--', note: item.status === '已闭环' ? '闭环完成并归档。' : '等待闭环确认。', tone: item.status === '已闭环' ? 'emerald' as Tone : 'slate' as Tone, evidences: item.status === '已闭环' ? [evidenceFiles[2]] : []},
+        ]
+        return {
+          hazardId: item.id,
+          hazardCode: `YH-202603-${String(index + 1).padStart(3, '0')}`,
+          enterpriseId: item.enterpriseId,
+          enterpriseName: enterprise.name,
+          hazardName: item.title,
+          hazardDescription: `${item.title}，需在规定期限内完成整改并留存复查证据。`,
+          hazardLevel: item.level,
+          foundAt: item.foundAt,
+          sourceTaskId: sourceTask?.taskId || '',
+          sourceTaskName: sourceTask?.taskName || item.source,
+          responsiblePerson: item.level === '高' ? enterprise.leader : item.level === '中' ? '安全主管' : '车间主任',
+          rectificationDeadline: item.deadline,
+          status: item.status,
+          isOverdue,
+          evidenceFiles,
+          rectificationRecords,
+          reviewRecords,
+          reviewStatus,
+          rectificationStatus,
+          closedAt: item.status === '已闭环' ? `${item.deadline} 18:00` : '',
+          timeline,
+          source: item.source,
+        }
+      })
+      .sort((a, b) => Number(b.isOverdue) - Number(a.isOverdue) || ({ 高: 3, 中: 2, 低: 1 }[b.hazardLevel] - { 高: 3, 中: 2, 低: 1 }[a.hazardLevel]) || a.rectificationDeadline.localeCompare(b.rectificationDeadline))
+  }, [dashboardToday, taskCenterRows, latestProviderByEnterprise])
+  const hazardRowsForPageDetailed = useMemo(() => {
+    return hazardRowsDetailed.filter(item => {
+      const matchesScope =
+        hazardListScope === 'pendingReview'
+          ? item.status === '待复查'
+          : hazardListScope === 'overdueOpen'
+            ? item.status !== '已闭环' && item.isOverdue
+            : true
+      const matchesEnterprise = !hazardEnterpriseId || item.enterpriseId === hazardEnterpriseId
+      const matchesLevel = hazardLevelFilter === 'all' || item.hazardLevel === hazardLevelFilter
+      const matchesStatus = hazardStatusFilter === 'all' || item.status === hazardStatusFilter
+      const matchesReview = hazardReviewFilter === 'all' || item.reviewStatus === hazardReviewFilter
+      const matchesOverdue = hazardOverdueFilter === 'all' || (hazardOverdueFilter === 'yes' ? item.isOverdue : !item.isOverdue)
+      const matchesTime =
+        hazardTimeFilter === 'all' ||
+        (hazardTimeFilter === 'last7days' && item.foundAt.slice(0, 10) >= weekStart) ||
+        (hazardTimeFilter === 'thisMonth' && item.foundAt.startsWith(dashboardMonth)) ||
+        (hazardTimeFilter === 'closedThisMonth' && item.closedAt.startsWith(dashboardMonth))
+      const keyword = hazardKeyword.trim()
+      const matchesKeyword = !keyword || item.hazardCode.includes(keyword) || item.hazardName.includes(keyword) || item.enterpriseName.includes(keyword)
+      const matchesQuick =
+        hazardQuickFilter === 'all' ||
+        (hazardQuickFilter === 'overdue' ? item.isOverdue : hazardQuickFilter === 'pendingReview' ? item.status === '待复查' : item.hazardLevel === '高')
+      return matchesScope && matchesEnterprise && matchesLevel && matchesStatus && matchesReview && matchesOverdue && matchesTime && matchesKeyword && matchesQuick
+    })
+  }, [dashboardMonth, hazardEnterpriseId, hazardKeyword, hazardLevelFilter, hazardListScope, hazardOverdueFilter, hazardQuickFilter, hazardReviewFilter, hazardRowsDetailed, hazardStatusFilter, hazardTimeFilter, weekStart])
+  const selectedHazard = hazardRowsDetailed.find(item => item.hazardId === selectedHazardId) || null
+  const visibleHazardDetail = page === 'hazards' && !!selectedHazard
+  const hazardSummaryCards = [
+    { key: 'open', label: '未闭环隐患数', value: hazardRowsDetailed.filter(item => item.status !== '已闭环').length, tone: 'amber' as Tone },
+    { key: 'rect', label: '待整改数', value: hazardRowsDetailed.filter(item => item.status === '待整改' || item.status === '整改中').length, tone: 'blue' as Tone },
+    { key: 'review', label: '待复查数', value: hazardRowsDetailed.filter(item => item.status === '待复查').length, tone: 'violet' as Tone },
+    { key: 'overdue', label: '超期未闭环数', value: hazardRowsDetailed.filter(item => item.status !== '已闭环' && item.isOverdue).length, tone: 'red' as Tone },
+    { key: 'closed', label: '本月已闭环数', value: hazardRowsDetailed.filter(item => item.closedAt.startsWith(dashboardMonth)).length, tone: 'emerald' as Tone },
+  ]
+  const snapshotRows = useMemo(() => {
+    return enterprises.map(ent => {
+      const current =
+        snapshots.find(item => item.enterpriseId === ent.id && item.month === selectedMonth && item.schemeId === activeScheme.id) ||
+        snapshotFor(activeScheme.id, ent, selectedMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
+      const currentIndex = months.indexOf(selectedMonth)
+      const previousMonth = currentIndex > 0 ? months[currentIndex - 1] : months[Math.max(0, months.length - 2)]
+      const previous =
+        snapshots.find(item => item.enterpriseId === ent.id && item.month === previousMonth && item.schemeId === activeScheme.id) ||
+        snapshotFor(activeScheme.id, ent, previousMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
+      const pendingHazardCount = Number(current.metrics.pendingHazardCount || 0)
+      const abnormalDeviceCount = Number(current.metrics.abnormalDeviceCount || 0)
+      const closureRate = clamp(100 - pendingHazardCount * 12 - abnormalDeviceCount * 6, 55, 100)
+      const riskLevel: Risk = closureRate < 72 || pendingHazardCount >= 4 ? '高' : closureRate < 88 || pendingHazardCount >= 2 ? '中' : '低'
+      const trendValue = current.totalScore - previous.totalScore
+      const trendStatus = trendValue >= 3 ? '持续向好' : trendValue <= -3 ? '下滑预警' : '基本持平'
+      const serviceSummary = `${taskCenterRows.filter(item => item.enterpriseId === ent.id && (item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth))).length} 次服务动作`
+      const reviewSuggestion = riskLevel === '高' ? '建议重点复核' : riskLevel === '中' ? '建议持续跟踪' : '建议保持当前节奏'
+      const snapshotRemark = riskLevel === '高' ? '高风险与超期项需要持续压降。' : riskLevel === '中' ? '整体可控，但仍需关注整改时效。' : '本月表现稳定，可作为续保与服务佐证。'
+      return {
+        snapshotId: current.id,
+        enterpriseId: ent.id,
+        enterpriseName: ent.name,
+        snapshotMonth: selectedMonth,
+        monthlyScore: current.totalScore,
+        riskLevel,
+        inspectionCoverageRate: Number(current.metrics.inspectionCoverage || 0),
+        closureRate,
+        overdueCount: hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.isOverdue).length,
+        trendStatus,
+        avgScore: current.totalScore,
+        highRiskEnterpriseCount: riskLevel === '高' ? 1 : 0,
+        scoreTrend: trendValue,
+        riskTrend: previous.levelName === current.levelName ? '等级稳定' : `${previous.levelName} -> ${current.levelName}`,
+        serviceSummary,
+        reviewSuggestion,
+        snapshotRemark,
+        serviceCount: taskCenterRows.filter(item => item.enterpriseId === ent.id && (item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth))).length,
+        previousScore: previous.totalScore,
+        previousClosureRate: clamp(100 - Number(previous.metrics.pendingHazardCount || 0) * 12 - Number(previous.metrics.abnormalDeviceCount || 0) * 6, 55, 100),
+        levelName: current.levelName,
+        levelColor: current.levelColor,
+        detail: current,
+        mainRisks: current.deductionDetails.filter(item => item.deducted > 0).slice(0, 4),
+      }
+    })
+  }, [activeScheme.id, approvals, dashboardMonth, dimensionRows, hazardRowsDetailed, levelRows, months, ruleRows, selectedMonth, snapshots, taskCenterRows])
+  const filteredSnapshotRows = snapshotRows.filter(item => (snapshotEnterpriseFilter === 'all' || item.enterpriseId === snapshotEnterpriseFilter) && (snapshotRiskFilter === 'all' || item.riskLevel === snapshotRiskFilter))
+  const selectedSnapshot = filteredSnapshotRows.find(item => item.snapshotId === selectedSnapshotId) || snapshotRows.find(item => item.snapshotId === selectedSnapshotId) || null
+  const visibleSnapshotDetail = page === 'scoreDetail' && !!selectedSnapshot
+  const snapshotOverview = {
+    enterpriseCount: filteredSnapshotRows.length,
+    highRiskCount: filteredSnapshotRows.filter(item => item.riskLevel === '高').length,
+    avgScore: filteredSnapshotRows.length ? round(filteredSnapshotRows.reduce((sum, item) => sum + item.monthlyScore, 0) / filteredSnapshotRows.length) : 0,
+    closureRate: filteredSnapshotRows.length ? round(filteredSnapshotRows.reduce((sum, item) => sum + item.closureRate, 0) / filteredSnapshotRows.length) : 0,
+    monthOnMonth: filteredSnapshotRows.length ? round(filteredSnapshotRows.reduce((sum, item) => sum + item.scoreTrend, 0) / filteredSnapshotRows.length) : 0,
+  }
+  const snapshotTrendMonths = months.slice(-4)
+  const snapshotTrendRows = snapshotTrendMonths.map(month => {
+    const monthRows = enterprises.map(ent => snapshotFor(activeScheme.id, ent, month, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id)))
+    const avgScore = round(monthRows.reduce((sum, item) => sum + item.totalScore, 0) / monthRows.length)
+    const closureRate = round(monthRows.reduce((sum, item) => sum + clamp(100 - Number(item.metrics.pendingHazardCount || 0) * 12 - Number(item.metrics.abnormalDeviceCount || 0) * 6, 55, 100), 0) / monthRows.length)
+    const highRiskCount = monthRows.filter(item => item.totalScore < 70).length
+    return {
+      month,
+      avgScore,
+      closureRate,
+      highRiskCount,
+      note: highRiskCount >= 3 ? '重点关注高风险企业和超期整改。' : closureRate >= 85 ? '本月闭环表现稳定。' : '闭环压力仍需跟踪。',
+    }
+  })
+  const serviceLedgerRows = useMemo(() => {
+    return taskCenterRows.map((item, index) => {
+      const uploaded = taskUploadedEvidence[item.taskId] || []
+      const evidenceFiles = [
+        ...item.evidenceFiles.map(file => ({ id: file.id, title: file.title, time: file.time, previewUrl: '', description: file.description })),
+        ...uploaded,
+      ]
+      const evidenceCount = evidenceFiles.length
+      const hasMissingEvidence = evidenceCount < 4
+      const abnormal = item.status === '已超期' || item.hazardCount > 0
+      const relatedHazardId = item.relatedHazardIds[0] || ''
+      const relatedSnapshotId = snapshotRows.find(row => row.enterpriseId === item.enterpriseId)?.snapshotId || ''
+      const recordStatus = abnormal ? '异常记录' : hasMissingEvidence ? '待补证据' : '证据完整'
+      const resultSummary = item.currentProgress
+      return {
+        recordId: `JL-202603-${String(index + 1).padStart(3, '0')}`,
+        enterpriseId: item.enterpriseId,
+        enterpriseName: item.enterpriseName,
+        serviceType: item.taskType,
+        sourceTaskId: item.taskId,
+        sourceTaskName: item.taskName,
+        executor: item.assignee,
+        executedAt: item.assignTime,
+        resultSummary,
+        evidenceCount,
+        recordStatus,
+        evidenceFiles,
+        relatedHazardId,
+        relatedSnapshotId,
+        remark: `${item.latestAction}，已形成服务留痕。`,
+        evidenceCompletenessRate: clamp(Math.round((evidenceCount / 4) * 100), 0, 100),
+        missingEvidenceCount: Math.max(0, 4 - evidenceCount),
+      }
+    })
+  }, [snapshotRows, taskCenterRows, taskUploadedEvidence])
+  const filteredServiceLedgerRows = serviceLedgerRows.filter(item => {
+    const matchesEnterprise = recordEnterpriseFilter === 'all' || item.enterpriseId === recordEnterpriseFilter
+    const matchesType = recordTypeFilter === 'all' || item.serviceType === recordTypeFilter
+    const matchesExecutor = recordExecutorFilter === 'all' || item.executor === recordExecutorFilter
+    const matchesTime =
+      recordTimeFilter === 'all' ||
+      (recordTimeFilter === 'thisMonth' && item.executedAt.startsWith(dashboardMonth)) ||
+      (recordTimeFilter === 'last7days' && item.executedAt.slice(0, 10) >= weekStart) ||
+      (recordTimeFilter === 'last30days' && item.executedAt.slice(0, 7) >= '2026-02')
+    const matchesStatus = recordStatusFilter === 'all' || item.recordStatus === recordStatusFilter
+    const matchesQuick =
+      recordQuickFilter === 'all' ||
+      (recordQuickFilter === 'missingEvidence' ? item.missingEvidenceCount > 0 : recordQuickFilter === 'thisMonth' ? item.executedAt.startsWith(dashboardMonth) : item.enterpriseId === selectedEnterpriseId)
+    return matchesEnterprise && matchesType && matchesExecutor && matchesTime && matchesStatus && matchesQuick
+  })
+  const selectedRecord = filteredServiceLedgerRows.find(item => item.recordId === selectedRecordId) || serviceLedgerRows.find(item => item.recordId === selectedRecordId) || null
+  const visibleRecordDetail = page === 'devices' && !!selectedRecord
+  const serviceLedgerOverview = {
+    monthlyServiceCount: serviceLedgerRows.filter(item => item.executedAt.startsWith(dashboardMonth)).length,
+    generatedCount: serviceLedgerRows.length,
+    evidenceRate: serviceLedgerRows.length ? round(serviceLedgerRows.reduce((sum, item) => sum + item.evidenceCompletenessRate, 0) / serviceLedgerRows.length) : 0,
+    abnormalCount: serviceLedgerRows.filter(item => item.recordStatus === '异常记录').length,
+    coverageRate: round((new Set(serviceLedgerRows.filter(item => item.executedAt.startsWith(dashboardMonth)).map(item => item.enterpriseId)).size / enterprises.length) * 100),
+  }
+  const serviceTypeDistribution = recordTypeOptions.filter(item => item.value !== 'all').map(item => ({ type: item.label, count: serviceLedgerRows.filter(row => row.serviceType === item.value).length }))
+  const deliveryLedger = {
+    deliverableCount: serviceLedgerRows.filter(item => item.recordStatus === '证据完整').length,
+    missingEvidenceCount: serviceLedgerRows.filter(item => item.missingEvidenceCount > 0).length,
+    pendingCompletionCount: serviceLedgerRows.filter(item => item.recordStatus !== '证据完整').length,
+  }
   const selectedEnterpriseInsuranceStatus = insuranceStatusMap[selectedEnterprise.id] || '在保'
   const portraitOpenHazards = hazards.filter(item => item.enterpriseId === selectedEnterprise.id && item.status !== '已闭环')
   const portraitHazardRows = portraitOpenHazards.map(item => ({ ...item, owner: item.level === '高' ? '企业负责人' : item.level === '中' ? '安全主管' : '车间主任', overdue: item.deadline < dashboardToday }))
@@ -744,6 +1050,24 @@ function App() {
     setTaskTimeFilter(route.taskTimeFilter || 'all')
     setTaskAssigneeFilter(route.taskAssigneeFilter || 'all')
     setTaskQuickFilter(route.taskQuickFilter || 'all')
+    setSelectedHazardId(route.selectedHazardId || '')
+    setHazardLevelFilter(route.hazardLevelFilter || 'all')
+    setHazardStatusFilter(route.hazardStatusFilter || 'all')
+    setHazardReviewFilter(route.hazardReviewFilter || 'all')
+    setHazardOverdueFilter(route.hazardOverdueFilter || 'all')
+    setHazardTimeFilter(route.hazardTimeFilter || 'all')
+    setHazardKeyword(route.hazardKeyword || '')
+    setHazardQuickFilter(route.hazardQuickFilter || 'all')
+    setSelectedSnapshotId(route.selectedSnapshotId || '')
+    setSnapshotEnterpriseFilter(route.snapshotEnterpriseFilter || 'all')
+    setSnapshotRiskFilter(route.snapshotRiskFilter || 'all')
+    setSelectedRecordId(route.selectedRecordId || '')
+    setRecordEnterpriseFilter(route.recordEnterpriseFilter || 'all')
+    setRecordTypeFilter(route.recordTypeFilter || 'all')
+    setRecordExecutorFilter(route.recordExecutorFilter || 'all')
+    setRecordTimeFilter(route.recordTimeFilter || 'all')
+    setRecordStatusFilter(route.recordStatusFilter || 'all')
+    setRecordQuickFilter(route.recordQuickFilter || 'all')
   }
 
   const navigateToRoute = (route: AppRouteState, replace = false) => {
@@ -791,14 +1115,37 @@ function App() {
 
   useEffect(() => {
     if (page !== 'hazards') return
-    navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterpriseId || undefined, hazardEnterpriseId: hazardEnterpriseId || undefined, hazardListScope }, true)
-  }, [page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope])
+    navigateToRoute(
+      {
+        page: 'hazards',
+        enterpriseId: selectedEnterpriseId || undefined,
+        hazardEnterpriseId: hazardEnterpriseId || undefined,
+        hazardListScope,
+        selectedHazardId: selectedHazardId || undefined,
+        hazardLevelFilter,
+        hazardStatusFilter,
+        hazardReviewFilter,
+        hazardOverdueFilter,
+        hazardTimeFilter,
+        hazardKeyword: hazardKeyword || undefined,
+        hazardQuickFilter,
+      },
+      true,
+    )
+  }, [page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
 
   useEffect(() => {
-    if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
+    if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined }, true)
     if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
-    if (page === 'scoreConfig' || page === 'devices' || page === 'users' || page === 'bigscreen' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
-  }, [page, selectedEnterpriseId, selectedMonth])
+    if (page === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter }, true)
+    if (page === 'scoreConfig' || page === 'users' || page === 'bigscreen' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
+  }, [page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter])
+
+  useEffect(() => {
+    if (page === 'scoreDetail' && snapshotEnterpriseFilter !== 'all') {
+      setSelectedEnterpriseId(snapshotEnterpriseFilter)
+    }
+  }, [page, snapshotEnterpriseFilter])
 
   const openTaskCenter = (scope: TaskListScope, taskId?: string, pushHistory = false) => {
     const scopedRows = taskCenterRows.filter(item => {
@@ -890,12 +1237,81 @@ function App() {
     setDetailSnapshotMonth(month)
   }
 
+  const openHazardDetail = (hazardId: string) => {
+    setSelectedHazardId(hazardId)
+  }
+
+  const openHazardEnterprise = (enterpriseId: string) => {
+    navigateToRoute({ page: 'detail', enterpriseId, selectedMonth })
+  }
+
+  const openHazardSourceTask = (taskId: string, enterpriseId: string) => {
+    navigateToRoute({
+      page: 'tasks',
+      taskId,
+      taskListScope: 'all',
+      taskEnterpriseFilter: enterpriseId,
+      taskTypeFilter: 'all',
+      taskStatusFilter: 'all',
+      taskPriorityFilter: 'all',
+      taskTimeFilter: 'all',
+      taskAssigneeFilter: 'all',
+      taskQuickFilter: 'all',
+    })
+  }
+
+  const openSnapshotDetail = (snapshotId: string, enterpriseId?: string) => {
+    if (enterpriseId) {
+      setSnapshotEnterpriseFilter(enterpriseId)
+      setSelectedEnterpriseId(enterpriseId)
+    }
+    setSelectedSnapshotId(snapshotId)
+  }
+
+  const openSnapshotEnterprise = (enterpriseId: string, month: string) => {
+    navigateToRoute({ page: 'detail', enterpriseId, selectedMonth: month })
+  }
+
+  const openSnapshotRecords = (enterpriseId: string, month: string) => {
+    navigateToRoute({
+      page: 'devices',
+      selectedMonth: month,
+      recordEnterpriseFilter: enterpriseId,
+      recordTypeFilter: 'all',
+      recordExecutorFilter: 'all',
+      recordTimeFilter: 'thisMonth',
+      recordStatusFilter: 'all',
+      recordQuickFilter: 'all',
+    })
+  }
+
+  const openSnapshotHazards = (enterpriseId: string) => {
+    navigateToRoute({
+      page: 'hazards',
+      enterpriseId,
+      hazardEnterpriseId: enterpriseId,
+      hazardListScope: 'all',
+      hazardLevelFilter: 'all',
+      hazardStatusFilter: 'all',
+      hazardReviewFilter: 'all',
+      hazardOverdueFilter: 'all',
+      hazardTimeFilter: 'thisMonth',
+      hazardQuickFilter: 'all',
+    })
+  }
+
+  const openRecordDetail = (recordId: string) => {
+    setSelectedRecordId(recordId)
+  }
+
   const openPage = (nextPage: PageKey) => {
     if (nextPage === 'dashboard') navigateToRoute({ page: 'dashboard' })
     else if (nextPage === 'tasks') navigateToRoute({ page: 'tasks', taskListScope, taskId: selectedTaskId || undefined, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter })
     else if (nextPage === 'enterprises') navigateToRoute({ page: 'enterprises' })
     else if (nextPage === 'detail') navigateToRoute({ page: 'detail', enterpriseId: selectedEnterpriseId, selectedMonth, detailSnapshotMonth: detailSnapshotMonth || undefined })
-    else if (nextPage === 'hazards') navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterpriseId || undefined, hazardEnterpriseId: hazardEnterpriseId || undefined, hazardListScope })
+    else if (nextPage === 'hazards') navigateToRoute({ page: 'hazards', enterpriseId: selectedEnterpriseId || undefined, hazardEnterpriseId: hazardEnterpriseId || undefined, hazardListScope, selectedHazardId: selectedHazardId || undefined, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword: hazardKeyword || undefined, hazardQuickFilter })
+    else if (nextPage === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined })
+    else if (nextPage === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter })
     else navigateToRoute({ page: nextPage, enterpriseId: selectedEnterpriseId, selectedMonth })
   }
 
@@ -994,7 +1410,7 @@ function App() {
 
           {page === 'dashboard' && <div className="stack-lg"><div className="hero-banner"><div><div className="hero-title">服务商首页</div><div className="hero-desc">今天先处理到期任务和待复查隐患，再关注高风险企业的闭环压力；下方工作台同时给出行动入口、风险提醒和月度交付结果。</div></div><PerspectiveBadge value="安全服务商" /></div><div className="overview-grid">{overviewCards.map(item => { const Icon = item.icon; return <button key={item.key} className="overview-card" onClick={item.action}><div className="overview-card-head"><div><div className="overview-card-title">{item.title}</div><div className="overview-card-value">{item.value}</div></div><div className="overview-card-icon"><Icon className="icon-md" /></div></div><div className="overview-card-desc">{item.desc}</div></button> })}</div><div className="dashboard-main-grid"><Card title="今日待办任务" extra={<div className="inline-row"><Badge tone="amber">{filteredTodayTaskRows.length} 项待处理</Badge><button className="btn btn-xs btn-light" onClick={() => openTaskCenter('today', filteredTodayTaskRows[0]?.id, true)}>查看全部</button></div>}><div className="dashboard-filter-row"><Select value={dashboardEnterpriseFilter} onChange={setDashboardEnterpriseFilter} options={enterpriseFilterOptions} /><Select value={dashboardStatusFilter} onChange={setDashboardStatusFilter} options={taskStatusOptions} /><Select value={dashboardPriorityFilter} onChange={value => setDashboardPriorityFilter(value as 'all' | TaskPriority)} options={priorityOptions} /></div><div className="spacer-sm" />{filteredTodayTaskRows.length ? <Table className="task-table" columns={['任务名称', '企业名称', '任务类型', '截止时间', '当前状态', '优先级', '操作']} rows={filteredTodayTaskRows} renderRow={item => <tr key={item.id} className="clickable-row" onClick={() => openTaskCenter('today', item.id, true)}><td className="cell strong wrap-cell">{item.taskName}</td><td className="wrap-cell">{item.enterpriseName}</td><td>{item.taskType}</td><td>{item.dueDate}</td><td><StatusBadge value={item.taskStatus} /></td><td><PriorityBadge value={item.priority} /></td><td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openTaskCenter('today', item.id, true) }}>查看详情</button></td></tr>} /> : <div className="empty-state">当前筛选条件下没有待办任务。</div>}</Card><Card title="风险提醒" extra={<Badge tone="red">优先跟进高风险企业</Badge>}><div className="risk-list">{riskRows.map(item => <button key={item.enterpriseId} className="risk-item" onClick={() => openEnterpriseDetail(item.enterpriseId, true)}><div className="risk-item-head"><div><div className="title-sm">{item.enterpriseName}</div><div className="small muted">最近一次服务时间：{item.lastServiceDate}</div></div><RiskBadge level={item.riskLevel} /></div><div className="risk-item-grid"><div className="surface-box"><div className="muted">未闭环隐患数</div><div className="title-sm">{item.openHazardCount}</div></div><div className="surface-box"><div className="muted">超期项数</div><div className="title-sm">{item.overdueCount}</div></div></div></button>)}</div></Card></div><Card title="月度交付概览" extra={<Badge tone="cyan">截至 {dashboardMonth}</Badge>}><div className="delivery-grid"><div className="mini-card"><div className="muted">已完成任务数</div><div className="title-sm">{monthlyCompletedTaskCount} 项</div></div><div className="mini-card"><div className="muted">闭环隐患数</div><div className="title-sm">{monthlyClosedHazardCount} 项</div></div><div className="mini-card"><div className="muted">本月新增隐患数</div><div className="title-sm">{monthlyNewHazardCount} 项</div></div><div className="mini-card"><div className="muted">企业覆盖率</div><div className="title-sm">{enterpriseCoverageRate}%</div></div><div className="mini-card"><div className="muted">月度快照已生成企业数</div><div className="title-sm">{monthlySnapshotEnterpriseCount} 家</div></div></div></Card></div>}
 
-          {page === 'enterprises' && <Card title={`${perspective}企业列表`} extra={<div className="search-wrap"><Search className="search-icon" /><input className="search-input" value={selectedEnterprise.name} readOnly /></div>}><Table columns={['企业名称', '行业', '区域', '试用版得分', '等级', '高风险隐患', '操作']} rows={enterprises} renderRow={(item: Enterprise) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.industry}</td><td>{item.area}</td><td>{latestMap[item.id].totalScore}</td><td><Badge tone={latestMap[item.id].levelColor}>{latestMap[item.id].levelName}</Badge></td><td>{hazards.filter(h => h.enterpriseId === item.id && h.level === '高' && h.status !== '已闭环').length}</td><td><div className="button-row"><button className="btn btn-xs btn-light" onClick={() => openEnterpriseDetail(item.id)}>详情</button><button className="btn btn-xs btn-dark" onClick={() => navigateToRoute({ page: 'scoreDetail', enterpriseId: item.id, selectedMonth })}>评分</button></div></td></tr>} /></Card>}
+          {page === 'enterprises' && <Card title={`${perspective}企业列表`} extra={<div className="search-wrap"><Search className="search-icon" /><input className="search-input" value={selectedEnterprise.name} readOnly /></div>}><Table columns={['企业名称', '行业', '区域', '试用版得分', '等级', '高风险隐患', '操作']} rows={enterprises} renderRow={(item: Enterprise) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.industry}</td><td>{item.area}</td><td>{latestMap[item.id].totalScore}</td><td><Badge tone={latestMap[item.id].levelColor}>{latestMap[item.id].levelName}</Badge></td><td>{hazards.filter(h => h.enterpriseId === item.id && h.level === '高' && h.status !== '已闭环').length}</td><td><div className="button-row"><button className="btn btn-xs btn-light" onClick={() => openEnterpriseDetail(item.id)}>详情</button><button className="btn btn-xs btn-dark" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: item.id })}>快照</button></div></td></tr>} /></Card>}
 
           {page === 'detail' && (
             <div className="stack-lg">
@@ -1168,41 +1584,419 @@ function App() {
             </div>
           )}
 
-          {page === 'scoreDetail' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">企业评分详情页</div><div className="page-subtitle">支持按企业 + 月份生成评分结果快照，历史快照不可被覆盖。</div></div><div className="button-row"><button className="btn btn-dark" onClick={buildSnapshot}>生成评分快照</button><button className="btn btn-light" onClick={() => setDrawer({ snapshotId: visibleSnapshot.id })}><PanelRightOpen className="icon-sm" />扣分明细</button></div></div><div className="score-toolbar"><div className="score-toolbar-group"><div className="field-label">企业</div><Select value={selectedEnterpriseId} onChange={setSelectedEnterpriseId} options={entOptions} /></div><div className="score-toolbar-group"><div className="field-label">月份</div><Select value={selectedMonth} onChange={setSelectedMonth} options={monthOptions} /></div><div className="score-toolbar-group"><div className="field-label">方案</div><div className="surface-outline"><div className="title-sm">{activeScheme.name}</div><div className="small muted">{activeScheme.version} · {activeScheme.snapshotPolicy}</div></div></div></div><div className="grid-4"><StatCard title="得分" value={visibleSnapshot.totalScore} subtitle={currentSnapshot ? '已锁定快照' : '当前实时试算'} icon={Calculator} /><StatCard title="等级" value={visibleSnapshot.levelName} subtitle="按评分等级区间判定" icon={Sparkles} /><StatCard title="启用规则" value={ruleRows.filter(item => item.enabled).length} subtitle="当前方案规则数" icon={SlidersHorizontal} /><StatCard title="快照状态" value={currentSnapshot ? '已生成' : '未生成'} subtitle={currentSnapshot ? currentSnapshot.generatedAt : '可点击上方按钮生成'} icon={CalendarDays} /></div><div className="two-col"><Card title="维度得分" extra={<Badge tone="cyan">当前月份</Badge>}><Table columns={['维度', '得分', '满分', '扣减', '操作']} rows={visibleSnapshot.dimensionScores} renderRow={(item: DimensionScore) => <tr key={item.dimensionId}><td className="cell strong">{item.dimensionName}</td><td>{item.score}</td><td>{item.fullScore}</td><td>{item.deductions}</td><td><button className="btn btn-xs btn-light" onClick={() => setDrawer({ snapshotId: visibleSnapshot.id, dimensionId: item.dimensionId })}>扣分明细</button></td></tr>} /></Card><Card title="来源指标试算" extra={<Badge tone="violet">真实接口字段已预留</Badge>}><div className="stack">{Object.entries(visibleSnapshot.metrics).map(([key, value]) => <div key={key} className="surface-outline"><div className="list-card-head"><div className="title-sm">{key}</div><Badge tone="blue">{String(value)}</Badge></div></div>)}</div></Card></div><Card title="规则映射清单" extra={<Badge tone="amber">每条规则字段齐全</Badge>}><Table columns={['规则名称', '指标编码', '所属维度', '数据来源字段', '统计周期', '计算方式', '分值上限', '启用状态', '适用企业类型']} rows={ruleRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreRule) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.metricCode}</td><td>{dimensionRows.find(dimension => dimension.id === item.dimensionId)?.name || '-'}</td><td className="wrap-cell">{item.dataSourceField}</td><td>{item.statPeriod}</td><td>{item.calcMethod}</td><td>{item.maxScore}</td><td>{item.enabled ? <Badge tone="emerald">启用</Badge> : <Badge tone="slate">停用</Badge>}</td><td className="wrap-cell">{item.enterpriseTypes.join(' / ')}</td></tr>} /></Card></div>}
+          {page === 'scoreDetail' && (
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">月度快照页</div>
+                  <div className="page-subtitle">先看本月结果，再看趋势变化，再回看主要风险项和服务结论，形成对企业、服务和保险都能解释得通的月度输出。</div>
+                </div>
+                <div className="button-row">
+                  <button className="btn btn-dark" onClick={buildSnapshot}>生成本月快照</button>
+                  {(selectedSnapshot || visibleSnapshot) && <button className="btn btn-light" onClick={() => setDrawer({ snapshotId: (selectedSnapshot?.detail || visibleSnapshot).id })}><PanelRightOpen className="icon-sm" />查看扣分明细</button>}
+                </div>
+              </div>
+
+              <Card title="顶部总览区" extra={<Badge tone="cyan">{selectedMonth}</Badge>}>
+                <div className="score-toolbar">
+                  <div className="score-toolbar-group">
+                    <div className="field-label">月份</div>
+                    <Select value={selectedMonth} onChange={setSelectedMonth} options={monthOptions} />
+                  </div>
+                  <div className="score-toolbar-group">
+                    <div className="field-label">企业</div>
+                    <Select
+                      value={snapshotEnterpriseFilter}
+                      onChange={value => {
+                        setSnapshotEnterpriseFilter(value)
+                        if (value !== 'all') setSelectedEnterpriseId(value)
+                      }}
+                      options={[{ value: 'all', label: '全部企业' }, ...entOptions]}
+                    />
+                  </div>
+                  <div className="score-toolbar-group">
+                    <div className="field-label">风险等级</div>
+                    <Select value={snapshotRiskFilter} onChange={setSnapshotRiskFilter} options={snapshotRiskOptions} />
+                  </div>
+                </div>
+                <div className="spacer-sm" />
+                <div className="grid-4">
+                  <StatCard title="本月快照企业数" value={`${snapshotOverview.enterpriseCount}家`} subtitle="当前筛选范围内已形成月度输出" icon={Building2} />
+                  <StatCard title="高风险企业数" value={`${snapshotOverview.highRiskCount}家`} subtitle="建议优先复核和跟踪整改" icon={ShieldAlert} />
+                  <StatCard title="本月平均得分" value={snapshotOverview.avgScore} subtitle="综合当前月度快照结果" icon={Calculator} />
+                  <StatCard title="本月闭环率" value={`${snapshotOverview.closureRate}%`} subtitle={`环比 ${snapshotOverview.monthOnMonth >= 0 ? '+' : ''}${snapshotOverview.monthOnMonth} 分`} icon={LineChart} />
+                </div>
+              </Card>
+
+              <div className="workspace-two-col">
+                <div className="stack-lg">
+                  <Card title="快照列表区" extra={<Badge tone="blue">{filteredSnapshotRows.length} 条快照</Badge>}>
+                    {filteredSnapshotRows.length ? (
+                      <Table
+                        columns={['企业名称', '月份', '本月得分', '风险等级', '巡检覆盖率', '闭环率', '超期数', '趋势状态', '操作']}
+                        rows={filteredSnapshotRows}
+                        renderRow={item => (
+                          <tr key={item.snapshotId} className={cn('clickable-row', selectedSnapshotId === item.snapshotId && 'row-active')} onClick={() => openSnapshotDetail(item.snapshotId, item.enterpriseId)}>
+                            <td className="cell strong wrap-cell">{item.enterpriseName}</td>
+                            <td>{item.snapshotMonth}</td>
+                            <td>{item.monthlyScore}</td>
+                            <td><RiskBadge level={item.riskLevel} /></td>
+                            <td>{item.inspectionCoverageRate}%</td>
+                            <td>{item.closureRate}%</td>
+                            <td>{item.overdueCount}</td>
+                            <td><Badge tone={item.trendStatus === '持续向好' ? 'emerald' : item.trendStatus === '下滑预警' ? 'red' : 'slate'}>{item.trendStatus}</Badge></td>
+                            <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openSnapshotDetail(item.snapshotId, item.enterpriseId) }}>查看详情</button></td>
+                          </tr>
+                        )}
+                      />
+                    ) : (
+                      <div className="empty-state">当前筛选条件下没有月度快照，请调整月份或企业范围。</div>
+                    )}
+                  </Card>
+
+                  <Card title="趋势分析区" extra={<Badge tone="violet">近 4 个月</Badge>}>
+                    <div className="trend-list">
+                      {snapshotTrendRows.map(item => (
+                        <div key={item.month} className="trend-item">
+                          <div className="list-card-head">
+                            <div>
+                              <div className="title-sm">{item.month}</div>
+                              <div className="small muted">{item.note}</div>
+                            </div>
+                            <Badge tone={item.highRiskCount > 2 ? 'red' : item.highRiskCount > 0 ? 'amber' : 'emerald'}>{item.highRiskCount} 家高风险</Badge>
+                          </div>
+                          <div className="trend-metrics">
+                            <div className="mini-card">
+                              <div className="muted">得分变化</div>
+                              <div className="title-sm">{item.avgScore}</div>
+                            </div>
+                            <div className="mini-card">
+                              <div className="muted">风险等级变化</div>
+                              <div className="title-sm">{item.highRiskCount} 家重点关注</div>
+                            </div>
+                            <div className="mini-card">
+                              <div className="muted">闭环率变化</div>
+                              <div className="title-sm">{item.closureRate}%</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                <Card title="快照详情区" extra={selectedSnapshot ? <Badge tone={selectedSnapshot.levelColor}>{selectedSnapshot.levelName}</Badge> : <Badge tone="slate">请选择企业快照</Badge>}>
+                  {selectedSnapshot ? (
+                    <div className="stack-lg">
+                      <div className="summary-grid">
+                        <div className="mini-card">
+                          <div className="muted">企业名称</div>
+                          <div className="title-sm">{selectedSnapshot.enterpriseName}</div>
+                        </div>
+                        <div className="mini-card">
+                          <div className="muted">风险等级</div>
+                          <div className="title-sm">{selectedSnapshot.riskLevel}风险</div>
+                        </div>
+                        <div className="mini-card">
+                          <div className="muted">本月得分</div>
+                          <div className="title-sm">{selectedSnapshot.monthlyScore}</div>
+                        </div>
+                        <div className="mini-card">
+                          <div className="muted">与上月对比</div>
+                          <div className="title-sm">{selectedSnapshot.monthlyScore - selectedSnapshot.previousScore >= 0 ? '+' : ''}{selectedSnapshot.monthlyScore - selectedSnapshot.previousScore} 分</div>
+                        </div>
+                      </div>
+
+                      <div className="surface-outline">
+                        <div className="section-subtitle">本月关键指标</div>
+                        <div className="delivery-grid">
+                          <div className="mini-card"><div className="muted">巡检覆盖率</div><div className="title-sm">{selectedSnapshot.inspectionCoverageRate}%</div></div>
+                          <div className="mini-card"><div className="muted">闭环率</div><div className="title-sm">{selectedSnapshot.closureRate}%</div></div>
+                          <div className="mini-card"><div className="muted">超期数</div><div className="title-sm">{selectedSnapshot.overdueCount} 项</div></div>
+                          <div className="mini-card"><div className="muted">服务次数</div><div className="title-sm">{selectedSnapshot.serviceCount} 次</div></div>
+                        </div>
+                      </div>
+
+                      <div className="surface-outline">
+                        <div className="section-subtitle">主要扣分 / 风险项</div>
+                        <div className="todo-list">
+                          {selectedSnapshot.mainRisks.map(item => (
+                            <div key={item.id} className="todo-item">
+                              <div className="title-sm">{item.ruleName}</div>
+                              <div className="body">扣减 {item.deducted} 分，原因：{item.reason}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="surface-outline">
+                        <div className="section-subtitle">本月服务记录摘要</div>
+                        <div className="body mt-8">{selectedSnapshot.serviceSummary}</div>
+                        <div className="body">趋势判断：{selectedSnapshot.trendStatus}</div>
+                        <div className="body">关键备注：{selectedSnapshot.snapshotRemark}</div>
+                      </div>
+
+                      <div className="surface-outline">
+                        <div className="section-subtitle">输出结论区</div>
+                        <div className="body mt-8">建议关注等级：{selectedSnapshot.riskLevel === '高' ? '重点关注' : selectedSnapshot.riskLevel === '中' ? '持续关注' : '常规跟踪'}</div>
+                        <div className="body">是否建议重点复核：{selectedSnapshot.reviewSuggestion}</div>
+                        <div className="body">服务改进建议：{selectedSnapshot.snapshotRemark}</div>
+                        <div className="body">备注结论：{selectedSnapshot.riskTrend}</div>
+                      </div>
+
+                      <div className="button-row">
+                        <button className="btn btn-dark" onClick={() => openSnapshotEnterprise(selectedSnapshot.enterpriseId, selectedSnapshot.snapshotMonth)}>查看企业画像</button>
+                        <button className="btn btn-light" onClick={() => openSnapshotRecords(selectedSnapshot.enterpriseId, selectedSnapshot.snapshotMonth)}>查看本月服务记录</button>
+                        <button className="btn btn-light" onClick={() => openSnapshotHazards(selectedSnapshot.enterpriseId)}>查看本月隐患闭环</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="empty-state">请先从左侧快照列表中选择一家企业，查看本月结果、趋势变化和管理结论。</div>
+                  )}
+                </Card>
+              </div>
+            </div>
+          )}
 
           {page === 'scoreTrend' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">评分趋势页</div><div className="page-subtitle">按企业查看历史快照，不做覆盖，只追加新月份。</div></div><button className="btn btn-dark" onClick={buildSnapshot}>生成当前月份快照</button></div><div className="score-toolbar"><div className="score-toolbar-group"><div className="field-label">企业</div><Select value={selectedEnterpriseId} onChange={setSelectedEnterpriseId} options={entOptions} /></div><div className="score-toolbar-group"><div className="field-label">说明</div><div className="surface-outline"><div className="title-sm">{selectedEnterprise.name}</div><div className="small muted">已保存 {trendRows.length} 条评分历史</div></div></div></div><Card title="月度趋势" extra={<Badge tone="cyan">历史快照不覆盖</Badge>}><div className="stack">{trendRows.map(item => <div key={item.id} className="surface-outline"><div className="list-card-head"><div><div className="title-sm">{item.month}</div><div className="small muted">{item.generatedAt}</div></div><div className="inline-row"><Badge tone={item.levelColor}>{item.levelName}</Badge><div className="title-sm">{item.totalScore}</div></div></div><div className="spacer-sm" /><div className="progress-track"><div className="progress-bar progress-blue" style={{ width: `${item.totalScore}%` }} /></div><div className="score-trend-grid">{item.dimensionScores.map(dimension => <div key={dimension.dimensionId} className="mini-card"><div className="muted">{dimension.dimensionName}</div><div className="title-sm">{dimension.score}/{dimension.fullScore}</div></div>)}</div></div>)}</div></Card></div>}
 
           {page === 'scoreConfig' && <div className="stack-lg"><div className="section-head"><div><div className="section-title">评分机制配置页</div><div className="page-subtitle">支持评分方案、维度、规则、等级区间的试用态配置。</div></div><button className="btn btn-dark" onClick={() => setMessage('评分配置已保存在前端试用态')}>保存配置</button></div><Card title="评分方案" extra={<Badge tone="violet">试用版</Badge>}><Table columns={['方案名称', '版本', '状态', '生效时间', '快照策略', '描述', '操作']} rows={schemeRows} renderRow={(item: ScoreScheme) => <tr key={item.id}><td className="cell strong">{item.name}</td><td>{item.version}</td><td><StatusBadge value={item.status} /></td><td>{item.effectiveFrom}</td><td>{item.snapshotPolicy}</td><td className="wrap-cell">{item.description}</td><td><button className="btn btn-xs btn-light" onClick={() => { setSchemeRows(prev => prev.map(row => ({ ...row, status: row.id === item.id ? '启用' : '草稿' }))); setMessage(`已切换启用方案：${item.name}`) }}>设为启用</button></td></tr>} /></Card><div className="two-col"><Card title="评分维度" extra={<Badge tone="cyan">当前方案</Badge>}><Table columns={['维度编码', '维度名称', '权重', '排序', '说明']} rows={dimensionRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreDimension) => <tr key={item.id}><td>{item.code}</td><td className="cell strong">{item.name}</td><td><input className="inline-input" type="number" value={item.weight} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, weight: Number(event.target.value) } : row))} /></td><td><input className="inline-input" type="number" value={item.order} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, order: Number(event.target.value) } : row))} /></td><td className="wrap-cell"><input className="inline-input" value={item.note} onChange={event => setDimensionRows(prev => prev.map(row => row.id === item.id ? { ...row, note: event.target.value } : row))} /></td></tr>} /></Card><Card title="评分等级区间" extra={<Badge tone="amber">快照按生成时锁定</Badge>}><Table columns={['等级', '最小值', '最大值', '颜色', '说明']} rows={levelRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreLevelRange) => <tr key={item.id}><td className="cell strong">{item.name}</td><td><input className="inline-input" type="number" value={item.min} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, min: Number(event.target.value) } : row))} /></td><td><input className="inline-input" type="number" value={item.max} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, max: Number(event.target.value) } : row))} /></td><td><select value={item.color} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, color: event.target.value as Tone } : row))}>{(['emerald', 'blue', 'amber', 'red'] as Tone[]).map(tone => <option key={tone} value={tone}>{tone}</option>)}</select></td><td className="wrap-cell"><input className="inline-input" value={item.description} onChange={event => setLevelRows(prev => prev.map(row => row.id === item.id ? { ...row, description: event.target.value } : row))} /></td></tr>} /></Card></div><Card title="评分规则" extra={<Badge tone="blue">字段已预留真实接入能力</Badge>}><Table columns={['规则名称', '指标编码', '所属维度', '数据来源字段', '统计周期', '计算方式', '分值上限', '启用状态', '适用企业类型']} rows={ruleRows.filter(item => item.schemeId === activeScheme.id)} renderRow={(item: ScoreRule) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.metricCode}</td><td>{dimensionRows.find(dimension => dimension.id === item.dimensionId)?.name || '-'}</td><td className="wrap-cell">{item.dataSourceField}</td><td>{item.statPeriod}</td><td>{item.calcMethod}</td><td>{item.maxScore}</td><td>{item.enabled ? <Badge tone="emerald">启用</Badge> : <Badge tone="slate">停用</Badge>}</td><td className="wrap-cell">{item.enterpriseTypes.join(' / ')}</td></tr>} /></Card></div>}
 
           {page === 'hazards' && (
-            <Card
-              title={hazardListScope === 'pendingReview' ? '待复查隐患台账' : hazardListScope === 'overdueOpen' ? '超期未闭环台账' : '隐患闭环台账'}
-              extra={
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">{hazardListScope === 'pendingReview' ? '待复查隐患闭环页' : hazardListScope === 'overdueOpen' ? '超期隐患闭环页' : '隐患闭环页'}</div>
+                  <div className="page-subtitle">这里把隐患从发现、整改、复查到归档的过程串成一条闭环链，方便服务商、企业和保险侧对同一问题形成一致判断。</div>
+                </div>
                 <div className="inline-row">
                   {activeHazardEnterpriseName && <Badge tone="blue">{activeHazardEnterpriseName}</Badge>}
-                  <Badge tone={hazardListScope === 'all' ? 'slate' : 'amber'}>{hazardRowsForPage.length} 项</Badge>
+                  <Badge tone={hazardListScope === 'all' ? 'slate' : 'amber'}>{hazardRowsForPageDetailed.length} 项</Badge>
                 </div>
-              }
-            >
-              <Table
-                columns={['隐患内容', '企业', '等级', '状态', '来源', '发现时间', '整改期限']}
-                rows={hazardRowsForPage}
-                renderRow={item => (
-                  <tr key={item.id} className="clickable-row" onClick={() => openEnterpriseDetail(item.enterpriseId)}>
-                    <td className="cell strong wrap-cell">{item.title}</td>
-                    <td>{item.enterpriseName}</td>
-                    <td><RiskBadge level={item.level} /></td>
-                    <td><StatusBadge value={item.status} /></td>
-                    <td>{item.source}</td>
-                    <td>{item.foundAt}</td>
-                    <td>{item.deadline}</td>
-                  </tr>
+              </div>
+
+              <div className="task-status-grid">
+                {hazardSummaryCards.map(item => (
+                  <div key={item.key} className="task-status-card">
+                    <div className="task-status-card-head">
+                      <Badge tone={item.tone}>{item.label}</Badge>
+                      <span className="task-status-count">{item.value}</span>
+                    </div>
+                    <div className="small muted">持续跟踪当前闭环压力和重点问题。</div>
+                  </div>
+                ))}
+              </div>
+
+              <Card
+                title="筛选与检索区"
+                extra={
+                  <div className="task-quick-filters">
+                    {[
+                      { value: 'overdue', label: '只看超期' },
+                      { value: 'pendingReview', label: '只看待复查' },
+                      { value: 'highRisk', label: '只看高风险' },
+                    ].map(item => (
+                      <button key={item.value} className={cn('task-quick-chip', hazardQuickFilter === item.value && 'task-quick-chip-active')} onClick={() => setHazardQuickFilter(prev => (prev === item.value ? 'all' : item.value))}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              >
+                <div className="hazard-filter-grid">
+                  <Select value={hazardEnterpriseId || 'all'} onChange={value => setHazardEnterpriseId(value === 'all' ? '' : value)} options={[{ value: 'all', label: '全部企业' }, ...entOptions]} />
+                  <Select value={hazardLevelFilter} onChange={setHazardLevelFilter} options={hazardLevelOptions} />
+                  <Select value={hazardStatusFilter} onChange={setHazardStatusFilter} options={hazardStatusOptions} />
+                  <Select value={hazardReviewFilter} onChange={setHazardReviewFilter} options={hazardReviewOptions} />
+                  <Select value={hazardOverdueFilter} onChange={setHazardOverdueFilter} options={hazardOverdueOptions} />
+                  <Select value={hazardTimeFilter} onChange={setHazardTimeFilter} options={hazardTimeOptions} />
+                  <div className="search-wrap">
+                    <Search className="search-icon" />
+                    <input className="search-input search-input-wide" value={hazardKeyword} onChange={event => setHazardKeyword(event.target.value)} placeholder="搜索隐患编号 / 关键词" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="隐患列表区" extra={<Badge tone="blue">{hazardRowsForPageDetailed.length} 条隐患</Badge>}>
+                {hazardRowsForPageDetailed.length ? (
+                  <Table
+                    columns={['隐患编号', '企业名称', '隐患名称 / 描述', '隐患等级', '发现时间', '整改责任人', '整改期限', '当前状态', '是否超期', '操作']}
+                    rows={hazardRowsForPageDetailed}
+                    renderRow={item => (
+                      <tr key={item.hazardId} className={cn('clickable-row', selectedHazardId === item.hazardId && 'row-active')} onClick={() => openHazardDetail(item.hazardId)}>
+                        <td>{item.hazardCode}</td>
+                        <td className="wrap-cell">{item.enterpriseName}</td>
+                        <td className="cell strong wrap-cell">{item.hazardName}</td>
+                        <td><RiskBadge level={item.hazardLevel} /></td>
+                        <td>{item.foundAt}</td>
+                        <td>{item.responsiblePerson}</td>
+                        <td>{item.rectificationDeadline}</td>
+                        <td><StatusBadge value={item.status} /></td>
+                        <td>{item.isOverdue ? <Badge tone="red">已超期</Badge> : <Badge tone="emerald">正常</Badge>}</td>
+                        <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openHazardDetail(item.hazardId) }}>查看详情</button></td>
+                      </tr>
+                    )}
+                  />
+                ) : (
+                  <div className="empty-state">当前筛选条件下没有隐患项，请调整筛选后重试。</div>
                 )}
-              />
-            </Card>
+              </Card>
+            </div>
           )}
 
-          {page === 'devices' && <Card title="设备 / 物联展示" extra={<Badge tone="amber">评分规则已预留来源字段</Badge>}><Table columns={['设备名称', '企业', '类型', '位置', '状态', '最近心跳']} rows={devices.map(item => ({ ...item, enterpriseName: enterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))} renderRow={item => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.enterpriseName}</td><td>{item.type}</td><td>{item.location}</td><td><DeviceBadge status={item.status} /></td><td>{item.heartbeat}</td></tr>} /></Card>}
+          {page === 'devices' && (
+            <div className="stack-lg">
+              <div className="section-head">
+                <div>
+                  <div className="section-title">数据台账 / 服务记录页</div>
+                  <div className="page-subtitle">这里沉淀服务动作、执行结果和证据完整性，帮助团队证明“服务做过、过程可追、结果可交付”。</div>
+                </div>
+                <Badge tone="cyan">{filteredServiceLedgerRows.length} 条记录</Badge>
+              </div>
+
+              <div className="grid-4">
+                <StatCard title="本月服务次数" value={`${serviceLedgerOverview.monthlyServiceCount}次`} subtitle="本月已执行并留痕的服务动作" icon={ClipboardCheck} />
+                <StatCard title="已生成记录数" value={`${serviceLedgerOverview.generatedCount}条`} subtitle="可回溯的服务记录总量" icon={LayoutGrid} />
+                <StatCard title="证据完整率" value={`${serviceLedgerOverview.evidenceRate}%`} subtitle="图片、记录、结论齐套情况" icon={Eye} />
+                <StatCard title="异常记录数" value={`${serviceLedgerOverview.abnormalCount}条`} subtitle={`按企业覆盖率 ${serviceLedgerOverview.coverageRate}%`} icon={AlertTriangle} />
+              </div>
+
+              <div className="workspace-two-col">
+                <div className="stack-lg">
+                  <Card
+                    title="服务记录列表区"
+                    extra={
+                      <div className="task-quick-filters">
+                        {[
+                          { value: 'missingEvidence', label: '只看缺证据' },
+                          { value: 'thisMonth', label: '只看本月' },
+                          { value: 'currentEnterprise', label: '只看当前企业' },
+                        ].map(item => (
+                          <button key={item.value} className={cn('task-quick-chip', recordQuickFilter === item.value && 'task-quick-chip-active')} onClick={() => setRecordQuickFilter(prev => (prev === item.value ? 'all' : item.value))}>
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    }
+                  >
+                    <div className="hazard-filter-grid">
+                      <Select value={recordEnterpriseFilter} onChange={setRecordEnterpriseFilter} options={[{ value: 'all', label: '全部企业' }, ...entOptions]} />
+                      <Select value={recordTypeFilter} onChange={setRecordTypeFilter} options={recordTypeOptions} />
+                      <Select value={recordExecutorFilter} onChange={setRecordExecutorFilter} options={recordExecutorOptions} />
+                      <Select value={recordTimeFilter} onChange={setRecordTimeFilter} options={recordTimeOptions} />
+                      <Select value={recordStatusFilter} onChange={setRecordStatusFilter} options={recordStatusOptions} />
+                    </div>
+                    <div className="spacer-sm" />
+                    {filteredServiceLedgerRows.length ? (
+                      <Table
+                        columns={['记录编号', '企业名称', '服务类型', '来源任务', '执行人', '执行时间', '结果摘要', '证据数量', '状态', '操作']}
+                        rows={filteredServiceLedgerRows}
+                        renderRow={item => (
+                          <tr key={item.recordId} className={cn('clickable-row', selectedRecordId === item.recordId && 'row-active')} onClick={() => openRecordDetail(item.recordId)}>
+                            <td>{item.recordId}</td>
+                            <td className="wrap-cell">{item.enterpriseName}</td>
+                            <td>{item.serviceType}</td>
+                            <td className="wrap-cell">{item.sourceTaskName}</td>
+                            <td>{item.executor}</td>
+                            <td>{item.executedAt}</td>
+                            <td className="wrap-cell">{item.resultSummary}</td>
+                            <td>{item.evidenceCount}</td>
+                            <td><Badge tone={item.recordStatus === '证据完整' ? 'emerald' : item.recordStatus === '待补证据' ? 'amber' : 'red'}>{item.recordStatus}</Badge></td>
+                            <td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openRecordDetail(item.recordId) }}>查看详情</button></td>
+                          </tr>
+                        )}
+                      />
+                    ) : (
+                      <div className="empty-state">当前筛选条件下没有服务记录，请调整筛选后重试。</div>
+                    )}
+                  </Card>
+
+                  <Card title="服务类型分布区" extra={<Badge tone="violet">按记录沉淀情况统计</Badge>}>
+                    <div className="distribution-grid">
+                      {serviceTypeDistribution.map(item => (
+                        <div key={item.type} className="mini-card">
+                          <div className="muted">{item.type}</div>
+                          <div className="title-sm">{item.count} 条</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                <div className="stack-lg">
+                  <Card title="交付沉淀区" extra={<Badge tone="amber">面向月度交付与追溯</Badge>}>
+                    <div className="delivery-grid">
+                      <div className="mini-card">
+                        <div className="muted">可用于月度交付的记录数</div>
+                        <div className="title-sm">{deliveryLedger.deliverableCount} 条</div>
+                      </div>
+                      <div className="mini-card">
+                        <div className="muted">缺证据记录数</div>
+                        <div className="title-sm">{deliveryLedger.missingEvidenceCount} 条</div>
+                      </div>
+                      <div className="mini-card">
+                        <div className="muted">待补全记录数</div>
+                        <div className="title-sm">{deliveryLedger.pendingCompletionCount} 条</div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card title="明细详情区" extra={selectedRecord ? <Badge tone={selectedRecord.recordStatus === '证据完整' ? 'emerald' : selectedRecord.recordStatus === '待补证据' ? 'amber' : 'red'}>{selectedRecord.recordStatus}</Badge> : <Badge tone="slate">请选择服务记录</Badge>}>
+                    {selectedRecord ? (
+                      <div className="stack-lg">
+                        <div className="summary-grid">
+                          <div className="mini-card"><div className="muted">企业名称</div><div className="title-sm">{selectedRecord.enterpriseName}</div></div>
+                          <div className="mini-card"><div className="muted">服务类型</div><div className="title-sm">{selectedRecord.serviceType}</div></div>
+                          <div className="mini-card"><div className="muted">执行人</div><div className="title-sm">{selectedRecord.executor}</div></div>
+                          <div className="mini-card"><div className="muted">执行时间</div><div className="title-sm">{selectedRecord.executedAt}</div></div>
+                        </div>
+
+                        <div className="surface-outline">
+                          <div className="section-subtitle">执行说明</div>
+                          <div className="body mt-8">{selectedRecord.resultSummary}</div>
+                          <div className="body">备注记录：{selectedRecord.remark}</div>
+                        </div>
+
+                        <div className="surface-outline">
+                          <div className="section-subtitle">图片 / 附件证据</div>
+                          <div className="task-evidence-grid">
+                            {selectedRecord.evidenceFiles.map(item => (
+                              <div key={item.id} className="task-evidence-card">
+                                {item.previewUrl ? <img className="task-evidence-image" src={item.previewUrl} alt={item.title} /> : <div className="task-evidence-preview">服务证据</div>}
+                                <div className="stack-sm">
+                                  <div className="title-sm">{item.title}</div>
+                                  <div className="small muted">{item.time}</div>
+                                  <div className="body">{item.description}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="surface-outline">
+                          <div className="section-subtitle">关联关系</div>
+                          <div className="todo-list">
+                            <div className="todo-item">关联任务：{selectedRecord.sourceTaskName}</div>
+                            <div className="todo-item">关联隐患：{selectedRecord.relatedHazardId ? '已关联隐患闭环' : '当前未关联隐患'}</div>
+                            <div className="todo-item">关联快照：{selectedRecord.relatedSnapshotId ? '已纳入月度快照' : '待纳入月度快照'}</div>
+                          </div>
+                        </div>
+
+                        <div className="button-row">
+                          <button className="btn btn-dark" onClick={() => openHazardSourceTask(selectedRecord.sourceTaskId, selectedRecord.enterpriseId)}>查看任务详情</button>
+                          <button className="btn btn-light" onClick={() => openSnapshotEnterprise(selectedRecord.enterpriseId, selectedMonth)}>查看企业画像</button>
+                          {selectedRecord.relatedHazardId && <button className="btn btn-light" onClick={() => navigateToRoute({ page: 'hazards', enterpriseId: selectedRecord.enterpriseId, hazardEnterpriseId: selectedRecord.enterpriseId, selectedHazardId: selectedRecord.relatedHazardId, hazardListScope: 'all' })}>查看隐患闭环</button>}
+                          {selectedRecord.relatedSnapshotId && <button className="btn btn-light" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: selectedRecord.enterpriseId, selectedSnapshotId: selectedRecord.relatedSnapshotId })}>查看月度快照</button>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="empty-state">请先从左侧选择一条服务记录，查看证据承接和关联任务、隐患、快照。</div>
+                    )}
+                  </Card>
+                </div>
+              </div>
+            </div>
+          )}
 
           {page === 'tasks' && (
             <div className="stack-lg">
@@ -1377,6 +2171,149 @@ function App() {
                     <div className="title-sm">{activePortraitSnapshot.overdueHazardCount} 项</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {visibleHazardDetail && selectedHazard && (
+        <>
+          <div className="drawer-mask" onClick={() => setSelectedHazardId('')} />
+          <aside className="drawer-panel task-detail-drawer">
+            <div className="drawer-head">
+              <div>
+                <div className="page-title" style={{ fontSize: 22 }}>隐患详情</div>
+                <div className="page-subtitle">{selectedHazard.hazardCode} · {selectedHazard.enterpriseName}</div>
+              </div>
+              <button className="btn btn-light" onClick={() => setSelectedHazardId('')}>关闭</button>
+            </div>
+
+            <div className="stack-lg">
+              <div className="surface-outline task-detail-header">
+                <div className="stack-sm">
+                  <div className="title-sm">{selectedHazard.hazardName}</div>
+                  <div className="small muted">{selectedHazard.hazardDescription}</div>
+                </div>
+                <div className="inline-row">
+                  <RiskBadge level={selectedHazard.hazardLevel} />
+                  <StatusBadge value={selectedHazard.status} />
+                </div>
+              </div>
+
+              <div className="summary-grid">
+                <div className="mini-card"><div className="muted">发现来源</div><div className="title-sm">{selectedHazard.sourceTaskName}</div></div>
+                <div className="mini-card"><div className="muted">整改责任人</div><div className="title-sm">{selectedHazard.responsiblePerson}</div></div>
+                <div className="mini-card"><div className="muted">整改期限</div><div className="title-sm">{selectedHazard.rectificationDeadline}</div></div>
+                <div className="mini-card"><div className="muted">复查状态</div><div className="title-sm">{selectedHazard.reviewStatus}</div></div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">现场图片 / 证据</div>
+                <div className="task-evidence-grid">
+                  {selectedHazard.evidenceFiles.map(item => (
+                    <div key={item.id} className="task-evidence-card">
+                      <div className="task-evidence-preview">{item.category}</div>
+                      <div className="stack-sm">
+                        <div className="title-sm">{item.title}</div>
+                        <div className="small muted">{item.time}</div>
+                        <div className="body">{item.description}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">整改要求</div>
+                <div className="body mt-8">请围绕“{selectedHazard.hazardName}”完成现场整改、责任确认、整改前后对比留痕，并在 {selectedHazard.rectificationDeadline} 前提交证明材料。</div>
+                <div className="body">当前整改状态：{selectedHazard.rectificationStatus}</div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">整改提交记录</div>
+                <div className="task-timeline">
+                  {selectedHazard.rectificationRecords.map(item => (
+                    <div key={item.id} className="task-timeline-item">
+                      <div className="task-timeline-dot" />
+                      <div className="task-timeline-body">
+                        <div className="list-card-head">
+                          <div>
+                            <div className="title-sm">{item.action}</div>
+                            <div className="small muted">{item.actor}</div>
+                          </div>
+                          <div className="small muted">{item.time}</div>
+                        </div>
+                        <div className="body mt-8">{item.note}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">复查记录</div>
+                <div className="task-timeline">
+                  {selectedHazard.reviewRecords.length ? selectedHazard.reviewRecords.map(item => (
+                    <div key={item.id} className="task-timeline-item">
+                      <div className="task-timeline-dot" />
+                      <div className="task-timeline-body">
+                        <div className="list-card-head">
+                          <div>
+                            <div className="title-sm">{item.action}</div>
+                            <div className="small muted">{item.actor}</div>
+                          </div>
+                          <div className="small muted">{item.time}</div>
+                        </div>
+                        <div className="body mt-8">{item.note}</div>
+                      </div>
+                    </div>
+                  )) : <div className="empty-state">当前隐患尚未进入复查阶段。</div>}
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">闭环时间线</div>
+                <div className="task-timeline">
+                  {selectedHazard.timeline.map(item => (
+                    <details key={item.id} className="timeline-expander" open>
+                      <summary className="timeline-summary">
+                        <div className="inline-row">
+                          <Badge tone={item.tone}>{item.title}</Badge>
+                          <span className="small muted">{item.time}</span>
+                        </div>
+                        <span className="small muted">查看证据</span>
+                      </summary>
+                      <div className="timeline-details">
+                        <div className="body">{item.note}</div>
+                        {item.evidences.length > 0 && (
+                          <div className="task-evidence-grid">
+                            {item.evidences.map(evidence => (
+                              <div key={evidence.id} className="task-evidence-card">
+                                <div className="task-evidence-preview">{evidence.category}</div>
+                                <div className="stack-sm">
+                                  <div className="title-sm">{evidence.title}</div>
+                                  <div className="small muted">{evidence.time}</div>
+                                  <div className="body">{evidence.description}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+
+              <div className="surface-outline">
+                <div className="section-subtitle">关闭结论</div>
+                <div className="body mt-8">{selectedHazard.status === '已闭环' ? '复查确认通过，已形成闭环归档结论。' : selectedHazard.status === '待复查' ? '整改材料已齐套，待复查确认后归档。' : '当前仍处于整改推进阶段，暂未形成关闭结论。'}</div>
+              </div>
+
+              <div className="button-row">
+                <button className="btn btn-dark" onClick={() => openHazardEnterprise(selectedHazard.enterpriseId)}>查看企业画像</button>
+                {selectedHazard.sourceTaskId && <button className="btn btn-light" onClick={() => openHazardSourceTask(selectedHazard.sourceTaskId, selectedHazard.enterpriseId)}>查看来源任务</button>}
               </div>
             </div>
           </aside>

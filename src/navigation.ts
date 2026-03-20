@@ -34,13 +34,29 @@ export type NavigationState = {
   taskQuickFilter?: RouteTaskQuickFilter
   selectedMonth?: string
   detailSnapshotMonth?: string
+  selectedHazardId?: string
+  hazardLevelFilter?: string
+  hazardStatusFilter?: string
+  hazardReviewFilter?: string
+  hazardOverdueFilter?: string
+  hazardTimeFilter?: string
+  hazardKeyword?: string
+  hazardQuickFilter?: string
+  selectedSnapshotId?: string
+  snapshotEnterpriseFilter?: string
+  snapshotRiskFilter?: string
+  selectedRecordId?: string
+  recordEnterpriseFilter?: string
+  recordTypeFilter?: string
+  recordExecutorFilter?: string
+  recordTimeFilter?: string
+  recordStatusFilter?: string
+  recordQuickFilter?: string
 }
 
-const workspacePathMap: Record<Exclude<RoutePage, 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards'>, string> = {
-  scoreDetail: '/workspace/score-detail',
+const workspacePathMap: Record<Exclude<RoutePage, 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards' | 'scoreDetail' | 'devices'>, string> = {
   scoreTrend: '/workspace/score-trend',
   scoreConfig: '/workspace/score-config',
-  devices: '/workspace/devices',
   users: '/workspace/users',
   bigscreen: '/workspace/bigscreen',
 }
@@ -80,12 +96,36 @@ export const buildAppHref = (route: NavigationState): string => {
   } else if (route.page === 'detail') {
     pathname = route.enterpriseId ? `/enterprises/${route.enterpriseId}` : '/enterprises'
     addParam(params, 'month', route.selectedMonth)
-    addParam(params, 'snapshot', route.detailSnapshotMonth || undefined)
+    addParam(params, 'snapshot', route.detailSnapshotMonth)
   } else if (route.page === 'hazards') {
     pathname = '/hazards'
     addParam(params, 'enterpriseId', route.enterpriseId)
     addParam(params, 'scope', route.hazardListScope)
     addParam(params, 'hazardEnterpriseId', route.hazardEnterpriseId)
+    addParam(params, 'hazardId', route.selectedHazardId)
+    addParam(params, 'level', route.hazardLevelFilter)
+    addParam(params, 'status', route.hazardStatusFilter)
+    addParam(params, 'review', route.hazardReviewFilter)
+    addParam(params, 'overdue', route.hazardOverdueFilter)
+    addParam(params, 'timeRange', route.hazardTimeFilter)
+    addParam(params, 'keyword', route.hazardKeyword)
+    addParam(params, 'quick', route.hazardQuickFilter)
+  } else if (route.page === 'scoreDetail') {
+    pathname = '/snapshots'
+    addParam(params, 'month', route.selectedMonth)
+    addParam(params, 'enterprise', route.snapshotEnterpriseFilter)
+    addParam(params, 'risk', route.snapshotRiskFilter)
+    addParam(params, 'snapshotId', route.selectedSnapshotId)
+  } else if (route.page === 'devices') {
+    pathname = '/records'
+    addParam(params, 'recordId', route.selectedRecordId)
+    addParam(params, 'enterprise', route.recordEnterpriseFilter)
+    addParam(params, 'type', route.recordTypeFilter)
+    addParam(params, 'executor', route.recordExecutorFilter)
+    addParam(params, 'timeRange', route.recordTimeFilter)
+    addParam(params, 'status', route.recordStatusFilter)
+    addParam(params, 'quick', route.recordQuickFilter)
+    addParam(params, 'month', route.selectedMonth)
   } else {
     pathname = workspacePathMap[route.page]
     addParam(params, 'enterpriseId', route.enterpriseId)
@@ -115,6 +155,24 @@ const parseLegacyState = (params: URLSearchParams): NavigationState | null => {
     taskQuickFilter: (params.get('taskQuickFilter') as RouteTaskQuickFilter | null) || undefined,
     selectedMonth: params.get('selectedMonth') || undefined,
     detailSnapshotMonth: params.get('detailSnapshotMonth') || undefined,
+    selectedHazardId: params.get('selectedHazardId') || undefined,
+    hazardLevelFilter: params.get('hazardLevelFilter') || undefined,
+    hazardStatusFilter: params.get('hazardStatusFilter') || undefined,
+    hazardReviewFilter: params.get('hazardReviewFilter') || undefined,
+    hazardOverdueFilter: params.get('hazardOverdueFilter') || undefined,
+    hazardTimeFilter: params.get('hazardTimeFilter') || undefined,
+    hazardKeyword: params.get('hazardKeyword') || undefined,
+    hazardQuickFilter: params.get('hazardQuickFilter') || undefined,
+    selectedSnapshotId: params.get('selectedSnapshotId') || undefined,
+    snapshotEnterpriseFilter: params.get('snapshotEnterpriseFilter') || undefined,
+    snapshotRiskFilter: params.get('snapshotRiskFilter') || undefined,
+    selectedRecordId: params.get('selectedRecordId') || undefined,
+    recordEnterpriseFilter: params.get('recordEnterpriseFilter') || undefined,
+    recordTypeFilter: params.get('recordTypeFilter') || undefined,
+    recordExecutorFilter: params.get('recordExecutorFilter') || undefined,
+    recordTimeFilter: params.get('recordTimeFilter') || undefined,
+    recordStatusFilter: params.get('recordStatusFilter') || undefined,
+    recordQuickFilter: params.get('recordQuickFilter') || undefined,
   }
 }
 
@@ -154,6 +212,36 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       enterpriseId: params.get('enterpriseId') || undefined,
       hazardListScope: (params.get('scope') as RouteHazardScope | null) || undefined,
       hazardEnterpriseId: params.get('hazardEnterpriseId') || undefined,
+      selectedHazardId: params.get('hazardId') || undefined,
+      hazardLevelFilter: params.get('level') || undefined,
+      hazardStatusFilter: params.get('status') || undefined,
+      hazardReviewFilter: params.get('review') || undefined,
+      hazardOverdueFilter: params.get('overdue') || undefined,
+      hazardTimeFilter: params.get('timeRange') || undefined,
+      hazardKeyword: params.get('keyword') || undefined,
+      hazardQuickFilter: params.get('quick') || undefined,
+    }
+  }
+  if (pathname === '/snapshots' || pathname === '/workspace/score-detail') {
+    return {
+      page: 'scoreDetail',
+      selectedMonth: params.get('month') || undefined,
+      snapshotEnterpriseFilter: params.get('enterprise') || undefined,
+      snapshotRiskFilter: params.get('risk') || undefined,
+      selectedSnapshotId: params.get('snapshotId') || undefined,
+    }
+  }
+  if (pathname === '/records' || pathname === '/workspace/devices') {
+    return {
+      page: 'devices',
+      selectedRecordId: params.get('recordId') || undefined,
+      recordEnterpriseFilter: params.get('enterprise') || undefined,
+      recordTypeFilter: params.get('type') || undefined,
+      recordExecutorFilter: params.get('executor') || undefined,
+      recordTimeFilter: params.get('timeRange') || undefined,
+      recordStatusFilter: params.get('status') || undefined,
+      recordQuickFilter: params.get('quick') || undefined,
+      selectedMonth: params.get('month') || undefined,
     }
   }
   if (pathname.startsWith('/workspace/')) {
@@ -165,5 +253,6 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       selectedMonth: params.get('month') || undefined,
     }
   }
+
   return { page: 'dashboard' }
 }
