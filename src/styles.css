@@ -15,6 +15,52 @@ button { cursor: pointer; }
 .app-main { flex: 1; min-width: 0; }
 .content-wrap { max-width: 1600px; margin: 0 auto; padding: 24px 20px 40px; }
 
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(37,99,235,.16), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(14,165,233,.12), transparent 28%),
+    #f1f5f9;
+}
+.login-panel {
+  width: min(760px, 100%);
+  border: 1px solid rgba(148,163,184,.22);
+  border-radius: 32px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 22px 64px rgba(15,23,42,.12);
+  padding: 32px;
+  display: grid;
+  gap: 24px;
+}
+.login-badge {
+  background: #0f172a;
+  color: white;
+}
+.login-form {
+  max-width: 420px;
+}
+.login-submit {
+  min-height: 46px;
+}
+.login-hint-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (min-width: 960px) {
+  .login-hint-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.login-error {
+  margin: 0;
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 .sidebar {
   width: 288px;
   background: #020617;

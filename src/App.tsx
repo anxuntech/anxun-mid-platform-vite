@@ -16,16 +16,15 @@ import {
   Factory,
   FileWarning,
   Gauge,
-  Landmark,
   LayoutGrid,
   LineChart,
   MapPinned,
   Monitor,
+  LogOut,
   PanelRightOpen,
   Radio,
   Search,
   Settings2,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Siren,
@@ -35,9 +34,10 @@ import {
   Wrench,
 } from 'lucide-react'
 import { buildAppHref, parseAppLocation } from './navigation'
+import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthRole, type AuthSession } from './auth'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
-type PageKey = 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
+type PageKey = 'login' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
 type Level = 'A' | 'B' | 'C' | 'D'
 type Risk = '高' | '中' | '低'
 type HazardStatus = '待整改' | '整改中' | '待复查' | '已闭环'
@@ -259,13 +259,6 @@ const initialLevelRanges: ScoreLevelRange[] = [
   { id: 'l4', schemeId: 'scheme-v1', name: '高风险', min: 0, max: 69.99, color: 'red', description: '需重点整改' },
 ]
 
-const perspectives = [
-  { key: '企业' as Perspective, label: '企业', icon: Briefcase },
-  { key: '安全服务商' as Perspective, label: '安全服务商', icon: Wrench },
-  { key: '保险平台' as Perspective, label: '保险平台', icon: Landmark },
-  { key: '应急局' as Perspective, label: '应急局', icon: Shield },
-]
-
 const navItems = [
   { key: 'dashboard' as PageKey, label: '总览首页', icon: Gauge },
   { key: 'users' as PageKey, label: '企业首页', icon: Briefcase },
@@ -385,8 +378,11 @@ const TaskStatusBadge = ({ value }: { value: UnifiedTaskStatus }) => <Badge tone
 function App() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [session, setSession] = useState<AuthSession | null>(() => restoreSession())
+  const [loginUsername, setLoginUsername] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
   const [page, setPage] = useState<PageKey>('dashboard')
-  const [perspective, setPerspective] = useState<Perspective>('安全服务商')
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState(defaultEnterpriseId)
   const [selectedMonth, setSelectedMonth] = useState('2026-03')
   const [message, setMessage] = useState('')
@@ -441,49 +437,70 @@ function App() {
   const dashboardToday = '2026-03-21'
   const dashboardMonth = '2026-03'
   const weekStart = '2026-03-15'
+  const allEnterpriseIds = useMemo(() => enterprises.map(item => item.id), [])
+  const currentRole: AuthRole | null = session?.role || null
+  const perspective: Perspective = currentRole ? rolePerspectiveMap[currentRole] : '安全服务商'
+  const roleLabel = currentRole ? roleLabelMap[currentRole] : '未登录'
+  const allowedEnterpriseIds = useMemo(() => {
+    if (!session) return []
+    if (session.role === 'admin' || session.role === 'insurer' || session.role === 'regulator') return allEnterpriseIds
+    return session.enterpriseIds
+  }, [allEnterpriseIds, session])
+  const scopedEnterprises = useMemo(() => enterprises.filter(item => allowedEnterpriseIds.includes(item.id)), [allowedEnterpriseIds])
+  const scopedEnterpriseIds = useMemo(() => new Set(scopedEnterprises.map(item => item.id)), [scopedEnterprises])
+  const scopedHazards = useMemo(() => hazards.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds])
+  const scopedSurveyTasks = useMemo(() => initialSurveyTasks.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds])
+  const scopedServiceRecords = useMemo(() => initialServiceRecords.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds])
+  const scopedApprovals = useMemo(() => approvals.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [approvals, scopedEnterpriseIds])
+  const scopedSnapshots = useMemo(() => snapshots.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds, snapshots])
+  const visibleNavItems = useMemo(() => {
+    if (!session) return []
+    const allowedPages = new Set(roleNavMap[session.role])
+    return navItems.filter(item => allowedPages.has(item.key))
+  }, [session])
 
   const activeScheme = schemeRows.find(item => item.status === '启用') || schemeRows[0]
-  const selectedEnterprise = enterprises.find(item => item.id === selectedEnterpriseId) || enterprises[0]
-  const currentSnapshot = snapshots.find(item => item.enterpriseId === selectedEnterprise.id && item.month === selectedMonth && item.schemeId === activeScheme.id) || null
-  const previewSnapshot = useMemo(() => snapshotFor(activeScheme.id, selectedEnterprise, selectedMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id)), [selectedEnterprise, selectedMonth, approvals, dimensionRows, ruleRows, levelRows, activeScheme])
+  const selectedEnterprise = scopedEnterprises.find(item => item.id === selectedEnterpriseId) || scopedEnterprises[0] || enterprises[0]
+  const currentSnapshot = scopedSnapshots.find(item => item.enterpriseId === selectedEnterprise.id && item.month === selectedMonth && item.schemeId === activeScheme.id) || null
+  const previewSnapshot = useMemo(() => snapshotFor(activeScheme.id, selectedEnterprise, selectedMonth, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id)), [selectedEnterprise, selectedMonth, scopedApprovals, dimensionRows, ruleRows, levelRows, activeScheme])
   const visibleSnapshot = currentSnapshot || previewSnapshot
-  const latestMap = useMemo(() => Object.fromEntries(enterprises.map(ent => [ent.id, snapshots.filter(item => item.enterpriseId === ent.id && item.schemeId === activeScheme.id).sort((a, b) => b.month.localeCompare(a.month))[0] || snapshotFor(activeScheme.id, ent, dashboardMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))])) as Record<string, ScoreSnapshot>, [activeScheme, approvals, dashboardMonth, dimensionRows, levelRows, ruleRows, snapshots])
-  const drawerSnapshot = drawer ? snapshots.find(item => item.id === drawer.snapshotId) || visibleSnapshot : null
-  const entOptions = enterprises.map(item => ({ value: item.id, label: item.name }))
+  const latestMap = useMemo(() => Object.fromEntries(scopedEnterprises.map(ent => [ent.id, scopedSnapshots.filter(item => item.enterpriseId === ent.id && item.schemeId === activeScheme.id).sort((a, b) => b.month.localeCompare(a.month))[0] || snapshotFor(activeScheme.id, ent, dashboardMonth, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))])) as Record<string, ScoreSnapshot>, [activeScheme, dashboardMonth, dimensionRows, levelRows, ruleRows, scopedApprovals, scopedEnterprises, scopedSnapshots])
+  const drawerSnapshot = drawer ? scopedSnapshots.find(item => item.id === drawer.snapshotId) || visibleSnapshot : null
+  const entOptions = scopedEnterprises.map(item => ({ value: item.id, label: item.name }))
   const monthOptions = months.map(item => ({ value: item, label: item }))
   const detailRows = drawerSnapshot?.deductionDetails.filter(item => !drawer?.dimensionId || item.dimensionId === drawer.dimensionId) || []
-  const trendRows = snapshots.filter(item => item.enterpriseId === selectedEnterprise.id).sort((a, b) => a.month.localeCompare(b.month))
+  const trendRows = scopedSnapshots.filter(item => item.enterpriseId === selectedEnterprise.id).sort((a, b) => a.month.localeCompare(b.month))
 
   const buildSnapshot = () => {
     if (currentSnapshot) {
       setMessage(`${selectedEnterprise.name} ${selectedMonth} 的快照已存在，历史不可覆盖`)
       return
     }
-    const next = snapshotFor(activeScheme.id, selectedEnterprise, selectedMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
+    const next = snapshotFor(activeScheme.id, selectedEnterprise, selectedMonth, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
     setSnapshots(prev => [next, ...prev])
     setMessage(`已生成 ${selectedEnterprise.name} ${selectedMonth} 评分结果快照`)
   }
 
-  const openHazardsByEnterprise = useMemo(() => Object.fromEntries(enterprises.map(ent => [ent.id, hazards.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环')])) as Record<string, Hazard[]>, [])
-  const latestServiceDateByEnterprise = useMemo(() => Object.fromEntries(enterprises.map(ent => { const latest = initialServiceRecords.filter(item => item.enterpriseId === ent.id).sort((a, b) => b.date.localeCompare(a.date))[0]; return [ent.id, latest?.date || '暂无服务记录'] })) as Record<string, string>, [])
+  const openHazardsByEnterprise = useMemo(() => Object.fromEntries(scopedEnterprises.map(ent => [ent.id, scopedHazards.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环')])) as Record<string, Hazard[]>, [scopedEnterprises, scopedHazards])
+  const latestServiceDateByEnterprise = useMemo(() => Object.fromEntries(scopedEnterprises.map(ent => { const latest = scopedServiceRecords.filter(item => item.enterpriseId === ent.id).sort((a, b) => b.date.localeCompare(a.date))[0]; return [ent.id, latest?.date || '暂无服务记录'] })) as Record<string, string>, [scopedEnterprises, scopedServiceRecords])
   const latestProviderByEnterprise = useMemo(
     () =>
       Object.fromEntries(
-        enterprises.map(ent => {
+        scopedEnterprises.map(ent => {
           const provider =
-            initialServiceRecords.find(item => item.enterpriseId === ent.id)?.provider ||
-            initialSurveyTasks.find(item => item.enterpriseId === ent.id)?.assignee ||
+            scopedServiceRecords.find(item => item.enterpriseId === ent.id)?.provider ||
+            scopedSurveyTasks.find(item => item.enterpriseId === ent.id)?.assignee ||
             '安巡安全服务机构区域组'
           return [ent.id, provider]
         }),
       ) as Record<string, string>,
-    [],
+    [scopedEnterprises, scopedServiceRecords, scopedSurveyTasks],
   )
 
   const taskCenterRows = useMemo(() => {
-    const surveyRows: TaskCenterItem[] = initialSurveyTasks.map((task, index) => {
-      const enterprise = enterprises.find(item => item.id === task.enterpriseId) || enterprises[0]
-      const relatedHazards = hazards.filter(item => item.enterpriseId === task.enterpriseId && item.status !== '已闭环')
+    const surveyRows: TaskCenterItem[] = scopedSurveyTasks.map((task, index) => {
+      const enterprise = scopedEnterprises.find(item => item.id === task.enterpriseId) || selectedEnterprise
+      const relatedHazards = scopedHazards.filter(item => item.enterpriseId === task.enterpriseId && item.status !== '已闭环')
       const overdue = task.dueDate < dashboardToday && task.stage !== '已完成' && task.stage !== '待验收'
       const hazardFound = relatedHazards.length > 0
       const status: UnifiedTaskStatus =
@@ -534,9 +551,9 @@ function App() {
       }
     })
 
-    const serviceRows: TaskCenterItem[] = initialServiceRecords.map((record, index) => {
-      const enterprise = enterprises.find(item => item.id === record.enterpriseId) || enterprises[0]
-      const relatedHazards = hazards.filter(item => item.enterpriseId === record.enterpriseId && item.status !== '已闭环')
+    const serviceRows: TaskCenterItem[] = scopedServiceRecords.map((record, index) => {
+      const enterprise = scopedEnterprises.find(item => item.id === record.enterpriseId) || selectedEnterprise
+      const relatedHazards = scopedHazards.filter(item => item.enterpriseId === record.enterpriseId && item.status !== '已闭环')
       const overdue = record.date < dashboardToday && record.status !== '已完成' && record.status !== '待验收'
       const hazardFound = relatedHazards.length > 0
       const status: UnifiedTaskStatus =
@@ -555,7 +572,7 @@ function App() {
         taskCode: `RW-202603-${String(index + 101).padStart(3, '0')}`,
         taskName: `${record.serviceType}结果回传`,
         enterpriseId: record.enterpriseId,
-        enterpriseName: enterprises.find(item => item.id === record.enterpriseId)?.name || '-',
+        enterpriseName: scopedEnterprises.find(item => item.id === record.enterpriseId)?.name || '-',
         taskType: record.serviceType,
         source: '服务商执行回传',
         assignTime: serviceAssignTimeMap[record.id] || `${record.date} 09:00`,
@@ -585,8 +602,8 @@ function App() {
       }
     })
 
-    const hazardRows: TaskCenterItem[] = hazards.map((item, index) => {
-      const enterprise = enterprises.find(ent => ent.id === item.enterpriseId) || enterprises[0]
+    const hazardRows: TaskCenterItem[] = scopedHazards.map((item, index) => {
+      const enterprise = scopedEnterprises.find(ent => ent.id === item.enterpriseId) || selectedEnterprise
       const assignee = latestProviderByEnterprise[item.enterpriseId] || '安巡安全服务机构区域组'
       const overdue = item.status !== '已闭环' && item.deadline < dashboardToday
       const status: UnifiedTaskStatus = item.status === '已闭环' ? '已闭环' : item.status === '待复查' ? '待复查' : overdue ? '已超期' : '待整改'
@@ -632,24 +649,24 @@ function App() {
         ({ 高: 3, 中: 2, 低: 1 }[b.priority] - { 高: 3, 中: 2, 低: 1 }[a.priority]) ||
         a.dueTime.localeCompare(b.dueTime),
     )
-  }, [dashboardToday, latestProviderByEnterprise])
+  }, [dashboardToday, latestProviderByEnterprise, scopedEnterprises, scopedHazards, scopedServiceRecords, scopedSurveyTasks, selectedEnterprise])
 
   const serviceTaskRows = useMemo(() => [
-    ...initialSurveyTasks.map(task => {
-      const enterprise = enterprises.find(item => item.id === task.enterpriseId) || enterprises[0]
+    ...scopedSurveyTasks.map(task => {
+      const enterprise = scopedEnterprises.find(item => item.id === task.enterpriseId) || selectedEnterprise
       const openHazardCount = openHazardsByEnterprise[task.enterpriseId]?.length || 0
       const overdueCount = (openHazardsByEnterprise[task.enterpriseId] || []).filter(item => item.deadline < dashboardToday).length
       const priority: TaskPriority = overdueCount > 0 || task.stage === '待验收' || enterprise.risk === '高' ? '高' : task.stage === '执行中' || openHazardCount >= 2 ? '中' : '低'
       return { id: task.id, enterpriseId: task.enterpriseId, enterpriseName: task.enterpriseName, taskName: `${task.type}执行`, taskType: task.type, dueDate: task.dueDate, taskStatus: task.stage, priority, assignee: task.assignee, focus: task.focus, actionOwner: task.createdBy, openHazardCount, overdueCount, source: 'survey' as const, completedAt: task.stage === '已完成' || task.stage === '待验收' ? task.dueDate : '', latestAction: task.createdBy }
     }),
-    ...initialServiceRecords.map(record => {
-      const enterprise = enterprises.find(item => item.id === record.enterpriseId) || enterprises[0]
+    ...scopedServiceRecords.map(record => {
+      const enterprise = scopedEnterprises.find(item => item.id === record.enterpriseId) || selectedEnterprise
       const openHazardCount = openHazardsByEnterprise[record.enterpriseId]?.length || 0
       const overdueCount = (openHazardsByEnterprise[record.enterpriseId] || []).filter(item => item.deadline < dashboardToday).length
       const priority: TaskPriority = overdueCount > 0 || enterprise.risk === '高' ? '高' : record.status === '执行中' || record.status === '待验收' ? '中' : '低'
-      return { id: record.id, enterpriseId: record.enterpriseId, enterpriseName: enterprises.find(item => item.id === record.enterpriseId)?.name || '-', taskName: `${record.serviceType}结果回传`, taskType: record.serviceType, dueDate: record.date, taskStatus: record.status, priority, assignee: record.provider, focus: record.result, actionOwner: record.provider, openHazardCount, overdueCount, source: 'service' as const, completedAt: record.status === '已完成' || record.status === '待验收' ? record.date : '', latestAction: record.result }
+      return { id: record.id, enterpriseId: record.enterpriseId, enterpriseName: scopedEnterprises.find(item => item.id === record.enterpriseId)?.name || '-', taskName: `${record.serviceType}结果回传`, taskType: record.serviceType, dueDate: record.date, taskStatus: record.status, priority, assignee: record.provider, focus: record.result, actionOwner: record.provider, openHazardCount, overdueCount, source: 'service' as const, completedAt: record.status === '已完成' || record.status === '待验收' ? record.date : '', latestAction: record.result }
     }),
-  ].sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [dashboardToday, openHazardsByEnterprise])
+  ].sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [dashboardToday, openHazardsByEnterprise, scopedEnterprises, scopedServiceRecords, scopedSurveyTasks, selectedEnterprise])
 
   const matchesTaskScope = (item: (typeof serviceTaskRows)[number], scope: 'all' | 'today' | 'weekCompleted' | 'monthly') => {
     if (scope === 'today') return item.taskStatus !== '已完成' && item.dueDate <= dashboardToday
@@ -660,7 +677,7 @@ function App() {
 
   const riskRows = useMemo(
     () =>
-      enterprises
+      scopedEnterprises
         .map(ent => {
           const openRows = openHazardsByEnterprise[ent.id] || []
           const overdueCount = openRows.filter(item => item.deadline < dashboardToday).length
@@ -670,7 +687,7 @@ function App() {
         })
         .sort((a, b) => ({ 高: 3, 中: 2, 低: 1 }[b.riskLevel] - { 高: 3, 中: 2, 低: 1 }[a.riskLevel] || b.overdueCount - a.overdueCount || b.openHazardCount - a.openHazardCount))
         .slice(0, 6),
-    [dashboardToday, latestServiceDateByEnterprise, openHazardsByEnterprise],
+    [dashboardToday, latestServiceDateByEnterprise, openHazardsByEnterprise, scopedEnterprises],
   )
 
   const todayTaskRows = serviceTaskRows
@@ -682,17 +699,17 @@ function App() {
 
   const taskCountToday = todayTaskRows.length
   const taskCompletedWeek = weeklyCompletedTaskRows.length
-  const hazardPendingReview = hazards.filter(item => item.status === '待复查').length
-  const overdueOpenCount = hazards.filter(item => item.status !== '已闭环' && item.deadline < dashboardToday).length
-  const enterpriseCoveredCount = new Set([...initialSurveyTasks.filter(item => item.dueDate.startsWith(dashboardMonth)).map(item => item.enterpriseId), ...initialServiceRecords.filter(item => item.date.startsWith(dashboardMonth)).map(item => item.enterpriseId)]).size
-  const enterpriseTotalCount = enterprises.length
+  const hazardPendingReview = scopedHazards.filter(item => item.status === '待复查').length
+  const overdueOpenCount = scopedHazards.filter(item => item.status !== '已闭环' && item.deadline < dashboardToday).length
+  const enterpriseCoveredCount = new Set([...scopedSurveyTasks.filter(item => item.dueDate.startsWith(dashboardMonth)).map(item => item.enterpriseId), ...scopedServiceRecords.filter(item => item.date.startsWith(dashboardMonth)).map(item => item.enterpriseId)]).size
+  const enterpriseTotalCount = scopedEnterprises.length
   const progressWeight: Record<TaskStage, number> = { 待指派: 0.1, 待接单: 0.25, 执行中: 0.65, 待验收: 0.92, 已完成: 1 }
-  const monthlyServiceCompletionRate = initialSurveyTasks.length ? round((initialSurveyTasks.reduce((sum, item) => sum + progressWeight[item.stage], 0) / initialSurveyTasks.length) * 100) : 0
+  const monthlyServiceCompletionRate = scopedSurveyTasks.length ? round((scopedSurveyTasks.reduce((sum, item) => sum + progressWeight[item.stage], 0) / scopedSurveyTasks.length) * 100) : 0
   const monthlyCompletedTaskCount = monthlyTaskRows.filter(item => item.taskStatus === '待验收' || item.taskStatus === '已完成').length
-  const monthlyClosedHazardCount = hazards.filter(item => item.status === '已闭环' && item.foundAt.startsWith(dashboardMonth)).length
-  const monthlyNewHazardCount = hazards.filter(item => item.foundAt.startsWith(dashboardMonth)).length
+  const monthlyClosedHazardCount = scopedHazards.filter(item => item.status === '已闭环' && item.foundAt.startsWith(dashboardMonth)).length
+  const monthlyNewHazardCount = scopedHazards.filter(item => item.foundAt.startsWith(dashboardMonth)).length
   const enterpriseCoverageRate = enterpriseTotalCount ? round((enterpriseCoveredCount / enterpriseTotalCount) * 100) : 0
-  const monthlySnapshotEnterpriseCount = new Set(snapshots.filter(item => item.month === dashboardMonth && item.schemeId === activeScheme.id).map(item => item.enterpriseId)).size
+  const monthlySnapshotEnterpriseCount = new Set(scopedSnapshots.filter(item => item.month === dashboardMonth && item.schemeId === activeScheme.id).map(item => item.enterpriseId)).size
 
   const taskStatusOptions = [{ value: 'all', label: '全部状态' }, ...Array.from(new Set(todayTaskRows.map(item => item.taskStatus))).map(item => ({ value: item, label: item }))]
   const priorityOptions = [{ value: 'all', label: '全部优先级' }, { value: '高', label: '高优先' }, { value: '中', label: '中优先' }, { value: '低', label: '低优先' }]
@@ -724,12 +741,12 @@ function App() {
   const selectedTask = taskCenterRows.find(item => item.taskId === selectedTaskId) || null
   const visibleTaskDetail = page === 'tasks' && !!selectedTaskId && !!selectedTask
   const taskStatusSummary = taskStatusOrder.map(status => ({ status, count: taskScopedRows.filter(item => item.status === status).length }))
-  const hazardRowsForPage = hazards
+  const hazardRowsForPage = scopedHazards
     .filter(item => (hazardListScope === 'pendingReview' ? item.status === '待复查' : hazardListScope === 'overdueOpen' ? item.status !== '已闭环' && item.deadline < dashboardToday : true))
     .filter(item => !hazardEnterpriseId || item.enterpriseId === hazardEnterpriseId)
-    .map(item => ({ ...item, enterpriseName: enterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))
+    .map(item => ({ ...item, enterpriseName: scopedEnterprises.find(ent => ent.id === item.enterpriseId)?.name || '-' }))
   const taskScopeDescription = taskListScope === 'today' ? '当前展示今天需要优先调度和执行的任务。' : taskListScope === 'weekCompleted' ? '当前展示本周已闭环任务，便于复盘交付结果。' : taskListScope === 'monthly' ? '当前展示本月任务推进情况，便于统筹交付。' : '当前展示全部任务，可按企业、状态、执行人等条件调度。'
-  const activeHazardEnterpriseName = hazardEnterpriseId ? enterprises.find(item => item.id === hazardEnterpriseId)?.name || '' : ''
+  const activeHazardEnterpriseName = hazardEnterpriseId ? scopedEnterprises.find(item => item.id === hazardEnterpriseId)?.name || '' : ''
   const selectedTaskUploads = selectedTask ? taskUploadedEvidence[selectedTask.taskId] || [] : []
   const hazardLevelOptions = [{ value: 'all', label: '全部等级' }, ...(['高', '中', '低'] as Risk[]).map(item => ({ value: item, label: `${item}风险` }))]
   const hazardStatusOptions = [{ value: 'all', label: '全部整改状态' }, ...(['待整改', '整改中', '待复查', '已闭环'] as HazardStatus[]).map(item => ({ value: item, label: item }))]
@@ -766,9 +783,9 @@ function App() {
     { value: '异常记录', label: '异常记录' },
   ]
   const hazardRowsDetailed = useMemo(() => {
-    return hazards
+    return scopedHazards
       .map((item, index) => {
-        const enterprise = enterprises.find(ent => ent.id === item.enterpriseId) || enterprises[0]
+        const enterprise = scopedEnterprises.find(ent => ent.id === item.enterpriseId) || selectedEnterprise
         const sourceTask = taskCenterRows.find(task => task.relatedHazardIds.includes(item.id) || task.enterpriseId === item.enterpriseId)
         const rectificationStatus =
           item.status === '已闭环'
@@ -829,7 +846,7 @@ function App() {
         }
       })
       .sort((a, b) => Number(b.isOverdue) - Number(a.isOverdue) || ({ 高: 3, 中: 2, 低: 1 }[b.hazardLevel] - { 高: 3, 中: 2, 低: 1 }[a.hazardLevel]) || a.rectificationDeadline.localeCompare(b.rectificationDeadline))
-  }, [dashboardToday, taskCenterRows, latestProviderByEnterprise])
+  }, [dashboardToday, latestProviderByEnterprise, scopedEnterprises, scopedHazards, selectedEnterprise, taskCenterRows])
   const hazardRowsForPageDetailed = useMemo(() => {
     return hazardRowsDetailed.filter(item => {
       const matchesScope =
@@ -866,15 +883,15 @@ function App() {
     { key: 'closed', label: '本月已闭环数', value: hazardRowsDetailed.filter(item => item.closedAt.startsWith(dashboardMonth)).length, tone: 'emerald' as Tone },
   ]
   const snapshotRows = useMemo(() => {
-    return enterprises.map(ent => {
+    return scopedEnterprises.map(ent => {
       const current =
-        snapshots.find(item => item.enterpriseId === ent.id && item.month === selectedMonth && item.schemeId === activeScheme.id) ||
-        snapshotFor(activeScheme.id, ent, selectedMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
+        scopedSnapshots.find(item => item.enterpriseId === ent.id && item.month === selectedMonth && item.schemeId === activeScheme.id) ||
+        snapshotFor(activeScheme.id, ent, selectedMonth, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
       const currentIndex = months.indexOf(selectedMonth)
       const previousMonth = currentIndex > 0 ? months[currentIndex - 1] : months[Math.max(0, months.length - 2)]
       const previous =
-        snapshots.find(item => item.enterpriseId === ent.id && item.month === previousMonth && item.schemeId === activeScheme.id) ||
-        snapshotFor(activeScheme.id, ent, previousMonth, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
+        scopedSnapshots.find(item => item.enterpriseId === ent.id && item.month === previousMonth && item.schemeId === activeScheme.id) ||
+        snapshotFor(activeScheme.id, ent, previousMonth, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
       const pendingHazardCount = Number(current.metrics.pendingHazardCount || 0)
       const abnormalDeviceCount = Number(current.metrics.abnormalDeviceCount || 0)
       const closureRate = clamp(100 - pendingHazardCount * 12 - abnormalDeviceCount * 6, 55, 100)
@@ -911,7 +928,7 @@ function App() {
         mainRisks: current.deductionDetails.filter(item => item.deducted > 0).slice(0, 4),
       }
     })
-  }, [activeScheme.id, approvals, dashboardMonth, dimensionRows, hazardRowsDetailed, levelRows, months, ruleRows, selectedMonth, snapshots, taskCenterRows])
+  }, [activeScheme.id, dashboardMonth, dimensionRows, hazardRowsDetailed, levelRows, months, ruleRows, scopedApprovals, scopedEnterprises, scopedSnapshots, selectedMonth, taskCenterRows])
   const filteredSnapshotRows = snapshotRows.filter(item => (snapshotEnterpriseFilter === 'all' || item.enterpriseId === snapshotEnterpriseFilter) && (snapshotRiskFilter === 'all' || item.riskLevel === snapshotRiskFilter))
   const selectedSnapshot = filteredSnapshotRows.find(item => item.snapshotId === selectedSnapshotId) || snapshotRows.find(item => item.snapshotId === selectedSnapshotId) || null
   const visibleSnapshotDetail = page === 'scoreDetail' && !!selectedSnapshot
@@ -924,7 +941,7 @@ function App() {
   }
   const snapshotTrendMonths = months.slice(-4)
   const snapshotTrendRows = snapshotTrendMonths.map(month => {
-    const monthRows = enterprises.map(ent => snapshotFor(activeScheme.id, ent, month, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id)))
+    const monthRows = scopedEnterprises.map(ent => snapshotFor(activeScheme.id, ent, month, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id)))
     const avgScore = round(monthRows.reduce((sum, item) => sum + item.totalScore, 0) / monthRows.length)
     const closureRate = round(monthRows.reduce((sum, item) => sum + clamp(100 - Number(item.metrics.pendingHazardCount || 0) * 12 - Number(item.metrics.abnormalDeviceCount || 0) * 6, 55, 100), 0) / monthRows.length)
     const highRiskCount = monthRows.filter(item => item.totalScore < 70).length
@@ -993,7 +1010,7 @@ function App() {
     generatedCount: serviceLedgerRows.length,
     evidenceRate: serviceLedgerRows.length ? round(serviceLedgerRows.reduce((sum, item) => sum + item.evidenceCompletenessRate, 0) / serviceLedgerRows.length) : 0,
     abnormalCount: serviceLedgerRows.filter(item => item.recordStatus === '异常记录').length,
-    coverageRate: round((new Set(serviceLedgerRows.filter(item => item.executedAt.startsWith(dashboardMonth)).map(item => item.enterpriseId)).size / enterprises.length) * 100),
+    coverageRate: round((new Set(serviceLedgerRows.filter(item => item.executedAt.startsWith(dashboardMonth)).map(item => item.enterpriseId)).size / Math.max(1, scopedEnterprises.length)) * 100),
   }
   const serviceTypeDistribution = recordTypeOptions.filter(item => item.value !== 'all').map(item => ({ type: item.label, count: serviceLedgerRows.filter(row => row.serviceType === item.value).length }))
   const deliveryLedger = {
@@ -1002,7 +1019,7 @@ function App() {
     pendingCompletionCount: serviceLedgerRows.filter(item => item.recordStatus !== '证据完整').length,
   }
   const selectedEnterpriseInsuranceStatus = insuranceStatusMap[selectedEnterprise.id] || '在保'
-  const portraitOpenHazards = hazards.filter(item => item.enterpriseId === selectedEnterprise.id && item.status !== '已闭环')
+  const portraitOpenHazards = scopedHazards.filter(item => item.enterpriseId === selectedEnterprise.id && item.status !== '已闭环')
   const portraitHazardRows = portraitOpenHazards.map(item => ({ ...item, owner: item.level === '高' ? '企业负责人' : item.level === '中' ? '安全主管' : '车间主任', overdue: item.deadline < dashboardToday }))
   const portraitOverdueHazardCount = portraitHazardRows.filter(item => item.overdue).length
   const portraitMonthlyScore = visibleSnapshot.totalScore
@@ -1025,8 +1042,8 @@ function App() {
     const relevantMonths = months.slice(-4)
     return relevantMonths.map(month => {
       const snapshot =
-        snapshots.find(item => item.enterpriseId === selectedEnterprise.id && item.month === month && item.schemeId === activeScheme.id) ||
-        snapshotFor(activeScheme.id, selectedEnterprise, month, approvals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
+        scopedSnapshots.find(item => item.enterpriseId === selectedEnterprise.id && item.month === month && item.schemeId === activeScheme.id) ||
+        snapshotFor(activeScheme.id, selectedEnterprise, month, scopedApprovals, dimensionRows.filter(item => item.schemeId === activeScheme.id), ruleRows.filter(item => item.schemeId === activeScheme.id), levelRows.filter(item => item.schemeId === activeScheme.id))
       const pendingHazardCount = Number(snapshot.metrics.pendingHazardCount || 0)
       const closedRate = clamp(100 - pendingHazardCount * 12 - Number(snapshot.metrics.abnormalDeviceCount || 0) * 6, 58, 100)
       const riskLevel: Risk = closedRate < 72 || pendingHazardCount >= 4 ? '高' : closedRate < 88 || pendingHazardCount >= 2 ? '中' : '低'
@@ -1046,7 +1063,7 @@ function App() {
         overdueHazardCount: clamp(pendingHazardCount - 1, 0, pendingHazardCount),
       }
     })
-  }, [activeScheme.id, approvals, dimensionRows, levelRows, months, portraitServiceRecords, ruleRows, selectedEnterprise, snapshots])
+  }, [activeScheme.id, dimensionRows, levelRows, months, portraitServiceRecords, ruleRows, scopedApprovals, scopedSnapshots, selectedEnterprise])
   const activePortraitSnapshot = portraitTrendRows.find(item => item.month === (detailSnapshotMonth || selectedMonth)) || portraitTrendRows[portraitTrendRows.length - 1]
   const enterpriseHomeTodos = useMemo(() => {
     const enterpriseTasks = taskCenterRows.filter(item => item.enterpriseId === selectedEnterprise.id && item.status !== '已闭环').sort((a, b) => a.dueTime.localeCompare(b.dueTime))
@@ -1062,11 +1079,11 @@ function App() {
     const trend = portraitTrendRows.find(item => item.month === month)
     return trend || activePortraitSnapshot
   })
-  const insurerAreaOptions = [{ value: 'all', label: '全部区域' }, ...Array.from(new Set(enterprises.map(item => item.area))).map(item => ({ value: item, label: item }))]
-  const insurerIndustryOptions = [{ value: 'all', label: '全部行业' }, ...Array.from(new Set(enterprises.map(item => item.industry))).map(item => ({ value: item, label: item }))]
+  const insurerAreaOptions = [{ value: 'all', label: '全部区域' }, ...Array.from(new Set(scopedEnterprises.map(item => item.area))).map(item => ({ value: item, label: item }))]
+  const insurerIndustryOptions = [{ value: 'all', label: '全部行业' }, ...Array.from(new Set(scopedEnterprises.map(item => item.industry))).map(item => ({ value: item, label: item }))]
   const insurerTierOptions = [{ value: 'all', label: '全部分层' }, { value: 'A', label: 'A层' }, { value: 'B', label: 'B层' }, { value: 'C', label: 'C层' }, { value: 'D', label: 'D层' }]
   const insuranceRows = useMemo(() => {
-    return enterprises
+    return scopedEnterprises
       .map(ent => {
         const snapshotRow = snapshotRows.find(item => item.enterpriseId === ent.id) || snapshotRows[0]
         const openHazardCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环').length
@@ -1104,12 +1121,12 @@ function App() {
       })
       .filter(item => (insurerAreaFilter === 'all' || item.area === insurerAreaFilter) && (insurerIndustryFilter === 'all' || item.industry === insurerIndustryFilter) && (insurerTierFilter === 'all' || item.riskTier === insurerTierFilter))
       .sort((a, b) => ({ D: 4, C: 3, B: 2, A: 1 }[b.riskTier] - { D: 4, C: 3, B: 2, A: 1 }[a.riskTier]) || Number(b.manualReviewSuggested) - Number(a.manualReviewSuggested) || b.overdueCount - a.overdueCount)
-  }, [enterprises, hazardRowsDetailed, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, latestServiceDateByEnterprise, selectedMonth, snapshotRows, taskCenterRows])
+  }, [hazardRowsDetailed, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, latestServiceDateByEnterprise, scopedEnterprises, selectedMonth, snapshotRows, taskCenterRows])
   const insurerOverview = {
     highRiskCount: insuranceRows.filter(item => item.riskTier === 'D').length,
     focusCount: insuranceRows.filter(item => item.riskTier === 'C' || item.manualReviewSuggested).length,
     snapshotCount: insuranceRows.length,
-    coverageRate: round((new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size / enterprises.length) * 100),
+    coverageRate: round((new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size / Math.max(1, scopedEnterprises.length)) * 100),
     manualReviewCount: insuranceRows.filter(item => item.manualReviewSuggested).length,
   }
   const insurerFocusRows = insuranceRows.filter(item => item.riskTier === 'D' || item.riskTrend === '下滑预警' || item.manualReviewSuggested).slice(0, 6)
@@ -1117,14 +1134,14 @@ function App() {
     coveredCount: new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size,
     completionRate: round((taskCenterRows.filter(item => item.status === '已闭环').length / Math.max(1, taskCenterRows.length)) * 100),
     closureRate: snapshotOverview.closureRate,
-    serviceGap: enterprises.length - new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size,
+    serviceGap: scopedEnterprises.length - new Set(taskCenterRows.filter(item => item.assignTime.startsWith(selectedMonth) || item.dueTime.startsWith(selectedMonth)).map(item => item.enterpriseId)).size,
   }
   const insurerReviewRows = insurerFocusRows.slice(0, 4)
-  const regulatorAreaOptions = [{ value: 'all', label: '全部区域' }, ...Array.from(new Set(enterprises.map(item => item.area))).map(item => ({ value: item, label: item }))]
-  const regulatorIndustryOptions = [{ value: 'all', label: '全部行业' }, ...Array.from(new Set(enterprises.map(item => item.industry))).map(item => ({ value: item, label: item }))]
+  const regulatorAreaOptions = [{ value: 'all', label: '全部区域' }, ...Array.from(new Set(scopedEnterprises.map(item => item.area))).map(item => ({ value: item, label: item }))]
+  const regulatorIndustryOptions = [{ value: 'all', label: '全部行业' }, ...Array.from(new Set(scopedEnterprises.map(item => item.industry))).map(item => ({ value: item, label: item }))]
   const regulatorStatusOptions = [{ value: 'all', label: '全部状态' }, { value: '高风险关注', label: '高风险关注' }, { value: '整改中', label: '整改中' }, { value: '平稳', label: '平稳' }]
   const regulatorEnterpriseRows = useMemo(() => {
-    return enterprises
+    return scopedEnterprises
       .map(ent => {
         const openHazardCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.status !== '已闭环').length
         const overdueCount = hazardRowsDetailed.filter(item => item.enterpriseId === ent.id && item.isOverdue).length
@@ -1143,11 +1160,11 @@ function App() {
       })
       .filter(item => (regulatorAreaFilter === 'all' || item.area === regulatorAreaFilter) && (regulatorIndustryFilter === 'all' || item.industry === regulatorIndustryFilter) && (regulatorStatusFilter === 'all' || item.currentStatus === regulatorStatusFilter))
       .sort((a, b) => ({ 高: 3, 中: 2, 低: 1 }[b.riskLevel] - { 高: 3, 中: 2, 低: 1 }[a.riskLevel]) || b.overdueCount - a.overdueCount)
-  }, [enterprises, hazardRowsDetailed, latestServiceDateByEnterprise, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
+  }, [hazardRowsDetailed, latestServiceDateByEnterprise, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter, scopedEnterprises])
   const regulatorOverdueRows = hazardRowsDetailed
     .filter(item => item.isOverdue)
     .filter(item => {
-      const enterprise = enterprises.find(ent => ent.id === item.enterpriseId)
+      const enterprise = scopedEnterprises.find(ent => ent.id === item.enterpriseId)
       return (!!enterprise && (regulatorAreaFilter === 'all' || enterprise.area === regulatorAreaFilter) && (regulatorIndustryFilter === 'all' || enterprise.industry === regulatorIndustryFilter))
     })
     .map(item => ({
@@ -1157,7 +1174,7 @@ function App() {
     .sort((a, b) => b.overdueDays - a.overdueDays)
   const regulatorTraceRows = serviceLedgerRows
     .filter(item => {
-      const enterprise = enterprises.find(ent => ent.id === item.enterpriseId)
+      const enterprise = scopedEnterprises.find(ent => ent.id === item.enterpriseId)
       const currentStatus = regulatorEnterpriseRows.find(row => row.enterpriseId === item.enterpriseId)?.currentStatus || '平稳'
       return !!enterprise && (regulatorAreaFilter === 'all' || enterprise.area === regulatorAreaFilter) && (regulatorIndustryFilter === 'all' || enterprise.industry === regulatorIndustryFilter) && (regulatorStatusFilter === 'all' || currentStatus === regulatorStatusFilter)
     })
@@ -1177,6 +1194,47 @@ function App() {
   }))
   const routeState = useMemo(() => parseAppLocation(location.pathname, location.search) as AppRouteState, [location.pathname, location.search])
   const currentHref = `${location.pathname}${location.search}`
+  const allowedPages = useMemo(() => (session ? new Set(roleNavMap[session.role]) : new Set<PageKey>(['login'])), [session])
+  const defaultRouteState = useMemo<AppRouteState>(() => {
+    if (!session) return { page: 'login' }
+    if (session.defaultPage === 'users') return { page: 'users', enterpriseId: allowedEnterpriseIds[0] || defaultEnterpriseId, selectedMonth: dashboardMonth }
+    if (session.defaultPage === 'scoreTrend') return { page: 'scoreTrend', selectedMonth: dashboardMonth, insurerAreaFilter: 'all', insurerIndustryFilter: 'all', insurerTierFilter: 'all' }
+    if (session.defaultPage === 'bigscreen') return { page: 'bigscreen', selectedMonth: dashboardMonth, regulatorAreaFilter: 'all', regulatorIndustryFilter: 'all', regulatorStatusFilter: 'all' }
+    return { page: session.defaultPage }
+  }, [allowedEnterpriseIds, dashboardMonth, session])
+
+  const sanitizeRouteForSession = (route: AppRouteState): AppRouteState => {
+    if (!session) return { page: 'login' }
+    if (route.page === 'login') return defaultRouteState
+    const canAccess = allowedPages.has(route.page) || (session.role === 'regulator' && route.page === 'tasks')
+    if (!canAccess) return defaultRouteState
+    const firstEnterpriseId = allowedEnterpriseIds[0] || defaultEnterpriseId
+    const routeEnterpriseId = route.enterpriseId && allowedEnterpriseIds.includes(route.enterpriseId) ? route.enterpriseId : undefined
+    const routeHazardEnterpriseId = route.hazardEnterpriseId && allowedEnterpriseIds.includes(route.hazardEnterpriseId) ? route.hazardEnterpriseId : undefined
+    const routeTaskEnterpriseFilter = route.taskEnterpriseFilter && route.taskEnterpriseFilter !== 'all' && allowedEnterpriseIds.includes(route.taskEnterpriseFilter) ? route.taskEnterpriseFilter : undefined
+    const routeSnapshotEnterpriseFilter = route.snapshotEnterpriseFilter && route.snapshotEnterpriseFilter !== 'all' && allowedEnterpriseIds.includes(route.snapshotEnterpriseFilter) ? route.snapshotEnterpriseFilter : undefined
+    const routeRecordEnterpriseFilter = route.recordEnterpriseFilter && route.recordEnterpriseFilter !== 'all' && allowedEnterpriseIds.includes(route.recordEnterpriseFilter) ? route.recordEnterpriseFilter : undefined
+
+    if (session.role === 'enterprise') {
+      return {
+        ...route,
+        enterpriseId: firstEnterpriseId,
+        hazardEnterpriseId: firstEnterpriseId,
+        taskEnterpriseFilter: firstEnterpriseId,
+        snapshotEnterpriseFilter: firstEnterpriseId,
+        recordEnterpriseFilter: firstEnterpriseId,
+      }
+    }
+
+    return {
+      ...route,
+      enterpriseId: route.page === 'detail' || route.page === 'users' ? routeEnterpriseId || firstEnterpriseId : routeEnterpriseId,
+      hazardEnterpriseId: routeHazardEnterpriseId || (route.page === 'hazards' && session.role === 'service' ? firstEnterpriseId : undefined),
+      taskEnterpriseFilter: routeTaskEnterpriseFilter || (session.role === 'service' && route.page === 'tasks' ? 'all' : route.taskEnterpriseFilter),
+      snapshotEnterpriseFilter: routeSnapshotEnterpriseFilter || route.snapshotEnterpriseFilter,
+      recordEnterpriseFilter: routeRecordEnterpriseFilter || route.recordEnterpriseFilter,
+    }
+  }
 
   const applyRouteState = (route: AppRouteState) => {
     setPage(route.page)
@@ -1226,14 +1284,53 @@ function App() {
     navigate(href, { replace })
   }
 
+  const handleLogin = () => {
+    const nextSession = findAccount(loginUsername.trim(), loginPassword)
+    if (!nextSession) {
+      setLoginError('账号或密码不正确，请检查后重试。')
+      return
+    }
+    persistSession(nextSession)
+    setSession(nextSession)
+    setLoginError('')
+    setLoginPassword('')
+    navigate(buildAppHref(nextSession.defaultPage === 'users' ? { page: 'users', enterpriseId: nextSession.enterpriseIds[0] || defaultEnterpriseId, selectedMonth: dashboardMonth } : nextSession.defaultPage === 'scoreTrend' ? { page: 'scoreTrend', selectedMonth: dashboardMonth, insurerAreaFilter: 'all', insurerIndustryFilter: 'all', insurerTierFilter: 'all' } : nextSession.defaultPage === 'bigscreen' ? { page: 'bigscreen', selectedMonth: dashboardMonth, regulatorAreaFilter: 'all', regulatorIndustryFilter: 'all', regulatorStatusFilter: 'all' } : { page: nextSession.defaultPage as PageKey }), { replace: true })
+  }
+
+  const handleLogout = () => {
+    clearSession()
+    setSession(null)
+    setLoginUsername('')
+    setLoginPassword('')
+    setLoginError('')
+    navigate(buildAppHref({ page: 'login' }), { replace: true })
+  }
+
   useEffect(() => {
-    const canonicalHref = buildAppHref(routeState)
+    if (!session && routeState.page !== 'login') {
+      navigate(buildAppHref({ page: 'login' }), { replace: true })
+      return
+    }
+    if (session && routeState.page === 'login') {
+      navigate(buildAppHref(defaultRouteState), { replace: true })
+      return
+    }
+    const safeRoute = sanitizeRouteForSession(routeState)
+    const canonicalHref = buildAppHref(safeRoute)
     if (canonicalHref !== currentHref) {
       navigate(canonicalHref, { replace: true })
       return
     }
-    applyRouteState(routeState)
-  }, [currentHref, navigate, routeState])
+    applyRouteState(safeRoute)
+  }, [currentHref, defaultRouteState, navigate, routeState, session])
+
+  useEffect(() => {
+    if (!session || routeState.page === 'login') return
+    if (!allowedEnterpriseIds.length) return
+    if (!allowedEnterpriseIds.includes(selectedEnterpriseId)) {
+      setSelectedEnterpriseId(allowedEnterpriseIds[0])
+    }
+  }, [allowedEnterpriseIds, routeState.page, selectedEnterpriseId, session])
 
   useEffect(() => {
     if (page !== 'tasks') return
@@ -1542,6 +1639,45 @@ function App() {
     { key: 'completion', title: '本月服务完成率', value: `${monthlyServiceCompletionRate}%`, desc: '查看本月任务推进进度和待交付事项。', icon: Gauge, action: () => openTaskCenter('monthly', undefined, true) },
   ]
 
+  if (routeState.page === 'login') {
+    return (
+      <div className="login-shell">
+        <div className="login-panel">
+          <div className="brand-badge login-badge"><ShieldCheck className="icon-md" /></div>
+          <div className="page-title">安全服务平台登录</div>
+          <div className="page-subtitle">登录不同账号后，将按角色进入对应首页，并自动隔离导航和可见数据范围。</div>
+          <div className="stack-lg login-form">
+            <div className="stack-sm">
+              <div className="field-label">账号</div>
+              <input className="inline-input" value={loginUsername} onChange={event => setLoginUsername(event.target.value)} placeholder="请输入账号" />
+            </div>
+            <div className="stack-sm">
+              <div className="field-label">密码</div>
+              <input className="inline-input" type="password" value={loginPassword} onChange={event => setLoginPassword(event.target.value)} placeholder="请输入密码" onKeyDown={event => { if (event.key === 'Enter') handleLogin() }} />
+            </div>
+            {loginError && <div className="notice login-error">{loginError}</div>}
+            <button className="btn btn-dark login-submit" onClick={handleLogin}>登录进入平台</button>
+          </div>
+          <div className="login-hint-grid">
+            <div className="surface-outline">
+              <div className="section-subtitle">测试账号</div>
+              <div className="body mt-8">平台管理员：admin</div>
+              <div className="body">企业账号：ent_xintai01 / ent_hanglan01</div>
+              <div className="body">服务商账号：svc_team01</div>
+              <div className="body">保险账号：ins_picc01</div>
+              <div className="body">应急账号：gov_emg01</div>
+            </div>
+            <div className="surface-outline">
+              <div className="section-subtitle">登录后能力</div>
+              <div className="body mt-8">会按账号角色自动进入对应首页，刷新后仍保留登录态。</div>
+              <div className="body">未登录访问业务页会自动回到登录页，退出登录后将清理当前会话。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -1553,7 +1689,7 @@ function App() {
           </div>
         </div>
         <div className="sidebar-nav">
-          {navItems.map(item => {
+          {visibleNavItems.map(item => {
             const Icon = item.icon
             return <button key={item.key} onClick={() => openPage(item.key)} className={cn('nav-btn', page === item.key && 'nav-btn-active')}><span className="inline-row"><Icon className="icon-sm" /><span>{item.label}</span></span><ChevronRight className="icon-sm faint" /></button>
           })}
@@ -1564,27 +1700,26 @@ function App() {
         <div className="sticky-header">
           <div>
             <div className="page-title">安全服务中台试用版</div>
-            <div className="page-subtitle">评分方案配置、规则映射、月度快照、扣分明细与评分趋势</div>
+            <div className="page-subtitle">按登录账号进入对应角色首页，并基于企业范围自动隔离导航和业务数据。</div>
           </div>
           <div className="button-row">
-            {perspectives.map(item => {
-              const Icon = item.icon
-              return <button key={item.key} onClick={() => setPerspective(item.key)} className={cn('btn role-btn', perspective === item.key ? 'btn-dark' : 'btn-light')}><Icon className="icon-sm" />{item.label}</button>
-            })}
+            <Badge tone="blue">{roleLabel}</Badge>
+            <Badge tone="slate">{session?.name || '未登录'}</Badge>
+            <button className="btn btn-light role-btn" onClick={handleLogout}><LogOut className="icon-sm" />退出登录</button>
           </div>
         </div>
 
         <div className="content-wrap">
           {message && <div className="notice">{message}</div>}
 
-          {page === 'dashboard' && <div className="stack-lg"><div className="hero-banner"><div><div className="hero-title">服务商首页</div><div className="hero-desc">今天先处理到期任务和待复查隐患，再关注高风险企业的闭环压力；下方工作台同时给出行动入口、风险提醒和月度交付结果。</div></div><PerspectiveBadge value="安全服务商" /></div><div className="overview-grid">{overviewCards.map(item => { const Icon = item.icon; return <button key={item.key} className="overview-card" onClick={item.action}><div className="overview-card-head"><div><div className="overview-card-title">{item.title}</div><div className="overview-card-value">{item.value}</div></div><div className="overview-card-icon"><Icon className="icon-md" /></div></div><div className="overview-card-desc">{item.desc}</div></button> })}</div><div className="dashboard-main-grid"><Card title="今日待办任务" extra={<div className="inline-row"><Badge tone="amber">{filteredTodayTaskRows.length} 项待处理</Badge><button className="btn btn-xs btn-light" onClick={() => openTaskCenter('today', filteredTodayTaskRows[0]?.id, true)}>查看全部</button></div>}><div className="dashboard-filter-row"><Select value={dashboardEnterpriseFilter} onChange={setDashboardEnterpriseFilter} options={enterpriseFilterOptions} /><Select value={dashboardStatusFilter} onChange={setDashboardStatusFilter} options={taskStatusOptions} /><Select value={dashboardPriorityFilter} onChange={value => setDashboardPriorityFilter(value as 'all' | TaskPriority)} options={priorityOptions} /></div><div className="spacer-sm" />{filteredTodayTaskRows.length ? <Table className="task-table" columns={['任务名称', '企业名称', '任务类型', '截止时间', '当前状态', '优先级', '操作']} rows={filteredTodayTaskRows} renderRow={item => <tr key={item.id} className="clickable-row" onClick={() => openTaskCenter('today', item.id, true)}><td className="cell strong wrap-cell">{item.taskName}</td><td className="wrap-cell">{item.enterpriseName}</td><td>{item.taskType}</td><td>{item.dueDate}</td><td><StatusBadge value={item.taskStatus} /></td><td><PriorityBadge value={item.priority} /></td><td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openTaskCenter('today', item.id, true) }}>查看详情</button></td></tr>} /> : <div className="empty-state">当前筛选条件下没有待办任务。</div>}</Card><Card title="风险提醒" extra={<Badge tone="red">优先跟进高风险企业</Badge>}><div className="risk-list">{riskRows.map(item => <button key={item.enterpriseId} className="risk-item" onClick={() => openEnterpriseDetail(item.enterpriseId, true)}><div className="risk-item-head"><div><div className="title-sm">{item.enterpriseName}</div><div className="small muted">最近一次服务时间：{item.lastServiceDate}</div></div><RiskBadge level={item.riskLevel} /></div><div className="risk-item-grid"><div className="surface-box"><div className="muted">未闭环隐患数</div><div className="title-sm">{item.openHazardCount}</div></div><div className="surface-box"><div className="muted">超期项数</div><div className="title-sm">{item.overdueCount}</div></div></div></button>)}</div></Card></div><Card title="月度交付概览" extra={<Badge tone="cyan">截至 {dashboardMonth}</Badge>}><div className="delivery-grid"><div className="mini-card"><div className="muted">已完成任务数</div><div className="title-sm">{monthlyCompletedTaskCount} 项</div></div><div className="mini-card"><div className="muted">闭环隐患数</div><div className="title-sm">{monthlyClosedHazardCount} 项</div></div><div className="mini-card"><div className="muted">本月新增隐患数</div><div className="title-sm">{monthlyNewHazardCount} 项</div></div><div className="mini-card"><div className="muted">企业覆盖率</div><div className="title-sm">{enterpriseCoverageRate}%</div></div><div className="mini-card"><div className="muted">月度快照已生成企业数</div><div className="title-sm">{monthlySnapshotEnterpriseCount} 家</div></div></div></Card></div>}
+          {page === 'dashboard' && <div className="stack-lg"><div className="hero-banner"><div><div className="hero-title">{currentRole === 'admin' ? '总览首页' : '服务商首页'}</div><div className="hero-desc">{currentRole === 'admin' ? '当前展示平台全局视角，可统筹查看企业覆盖、任务推进、风险提醒和月度交付结果。' : '今天先处理到期任务和待复查隐患，再关注高风险企业的闭环压力；下方工作台同时给出行动入口、风险提醒和月度交付结果。'}</div></div><PerspectiveBadge value={currentRole === 'admin' ? '保险平台' : '安全服务商'} /></div><div className="overview-grid">{overviewCards.map(item => { const Icon = item.icon; return <button key={item.key} className="overview-card" onClick={item.action}><div className="overview-card-head"><div><div className="overview-card-title">{item.title}</div><div className="overview-card-value">{item.value}</div></div><div className="overview-card-icon"><Icon className="icon-md" /></div></div><div className="overview-card-desc">{item.desc}</div></button> })}</div><div className="dashboard-main-grid"><Card title="今日待办任务" extra={<div className="inline-row"><Badge tone="amber">{filteredTodayTaskRows.length} 项待处理</Badge><button className="btn btn-xs btn-light" onClick={() => openTaskCenter('today', filteredTodayTaskRows[0]?.id, true)}>查看全部</button></div>}><div className="dashboard-filter-row"><Select value={dashboardEnterpriseFilter} onChange={setDashboardEnterpriseFilter} options={enterpriseFilterOptions} /><Select value={dashboardStatusFilter} onChange={setDashboardStatusFilter} options={taskStatusOptions} /><Select value={dashboardPriorityFilter} onChange={value => setDashboardPriorityFilter(value as 'all' | TaskPriority)} options={priorityOptions} /></div><div className="spacer-sm" />{filteredTodayTaskRows.length ? <Table className="task-table" columns={['任务名称', '企业名称', '任务类型', '截止时间', '当前状态', '优先级', '操作']} rows={filteredTodayTaskRows} renderRow={item => <tr key={item.id} className="clickable-row" onClick={() => openTaskCenter('today', item.id, true)}><td className="cell strong wrap-cell">{item.taskName}</td><td className="wrap-cell">{item.enterpriseName}</td><td>{item.taskType}</td><td>{item.dueDate}</td><td><StatusBadge value={item.taskStatus} /></td><td><PriorityBadge value={item.priority} /></td><td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openTaskCenter('today', item.id, true) }}>查看详情</button></td></tr>} /> : <div className="empty-state">当前筛选条件下没有待办任务。</div>}</Card><Card title="风险提醒" extra={<Badge tone="red">优先跟进高风险企业</Badge>}><div className="risk-list">{riskRows.map(item => <button key={item.enterpriseId} className="risk-item" onClick={() => openEnterpriseDetail(item.enterpriseId, true)}><div className="risk-item-head"><div><div className="title-sm">{item.enterpriseName}</div><div className="small muted">最近一次服务时间：{item.lastServiceDate}</div></div><RiskBadge level={item.riskLevel} /></div><div className="risk-item-grid"><div className="surface-box"><div className="muted">未闭环隐患数</div><div className="title-sm">{item.openHazardCount}</div></div><div className="surface-box"><div className="muted">超期项数</div><div className="title-sm">{item.overdueCount}</div></div></div></button>)}</div></Card></div><Card title="月度交付概览" extra={<Badge tone="cyan">截至 {dashboardMonth}</Badge>}><div className="delivery-grid"><div className="mini-card"><div className="muted">已完成任务数</div><div className="title-sm">{monthlyCompletedTaskCount} 项</div></div><div className="mini-card"><div className="muted">闭环隐患数</div><div className="title-sm">{monthlyClosedHazardCount} 项</div></div><div className="mini-card"><div className="muted">本月新增隐患数</div><div className="title-sm">{monthlyNewHazardCount} 项</div></div><div className="mini-card"><div className="muted">企业覆盖率</div><div className="title-sm">{enterpriseCoverageRate}%</div></div><div className="mini-card"><div className="muted">月度快照已生成企业数</div><div className="title-sm">{monthlySnapshotEnterpriseCount} 家</div></div></div></Card></div>}
 
-          {page === 'enterprises' && <Card title={`${perspective}企业列表`} extra={<div className="search-wrap"><Search className="search-icon" /><input className="search-input" value={selectedEnterprise.name} readOnly /></div>}><Table columns={['企业名称', '行业', '区域', '试用版得分', '等级', '高风险隐患', '操作']} rows={enterprises} renderRow={(item: Enterprise) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.industry}</td><td>{item.area}</td><td>{latestMap[item.id].totalScore}</td><td><Badge tone={latestMap[item.id].levelColor}>{latestMap[item.id].levelName}</Badge></td><td>{hazards.filter(h => h.enterpriseId === item.id && h.level === '高' && h.status !== '已闭环').length}</td><td><div className="button-row"><button className="btn btn-xs btn-light" onClick={() => openEnterpriseDetail(item.id)}>详情</button><button className="btn btn-xs btn-dark" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: item.id })}>快照</button></div></td></tr>} /></Card>}
+          {page === 'enterprises' && <Card title={`${perspective}企业列表`} extra={<div className="search-wrap"><Search className="search-icon" /><input className="search-input" value={selectedEnterprise.name} readOnly /></div>}><Table columns={['企业名称', '行业', '区域', '试用版得分', '等级', '高风险隐患', '操作']} rows={scopedEnterprises} renderRow={(item: Enterprise) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.industry}</td><td>{item.area}</td><td>{latestMap[item.id].totalScore}</td><td><Badge tone={latestMap[item.id].levelColor}>{latestMap[item.id].levelName}</Badge></td><td>{scopedHazards.filter(h => h.enterpriseId === item.id && h.level === '高' && h.status !== '已闭环').length}</td><td><div className="button-row"><button className="btn btn-xs btn-light" onClick={() => openEnterpriseDetail(item.id)}>详情</button><button className="btn btn-xs btn-dark" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: item.id })}>快照</button></div></td></tr>} /></Card>}
 
           {page === 'detail' && (
             <div className="stack-lg">
               <div className="entity-switch">
-                {enterprises.map(item => (
+                {scopedEnterprises.map(item => (
                   <button key={item.id} onClick={() => switchPortraitEnterprise(item.id)} className={cn('entity-chip', item.id === selectedEnterpriseId && 'entity-chip-active')}>
                     {item.name}
                   </button>

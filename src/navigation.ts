@@ -1,4 +1,5 @@
 export type RoutePage =
+  | 'login'
   | 'dashboard'
   | 'enterprises'
   | 'detail'
@@ -60,7 +61,7 @@ export type NavigationState = {
   regulatorStatusFilter?: string
 }
 
-const workspacePathMap: Record<Exclude<RoutePage, 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards' | 'scoreDetail' | 'devices'>, string> = {
+const workspacePathMap: Record<Exclude<RoutePage, 'login' | 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards' | 'scoreDetail' | 'devices'>, string> = {
   scoreTrend: '/insurer',
   scoreConfig: '/workspace/score-config',
   users: '/enterprise-home',
@@ -74,7 +75,7 @@ const addParam = (params: URLSearchParams, key: string, value?: string) => {
 }
 
 const parseLegacyPage = (value: string | null): RoutePage => {
-  if (value === 'dashboard' || value === 'tasks' || value === 'enterprises' || value === 'detail' || value === 'scoreDetail' || value === 'scoreTrend' || value === 'scoreConfig' || value === 'hazards' || value === 'devices' || value === 'users' || value === 'bigscreen') {
+  if (value === 'login' || value === 'dashboard' || value === 'tasks' || value === 'enterprises' || value === 'detail' || value === 'scoreDetail' || value === 'scoreTrend' || value === 'scoreConfig' || value === 'hazards' || value === 'devices' || value === 'users' || value === 'bigscreen') {
     return value
   }
   return 'dashboard'
@@ -86,6 +87,8 @@ export const buildAppHref = (route: NavigationState): string => {
 
   if (route.page === 'dashboard') {
     pathname = '/dashboard'
+  } else if (route.page === 'login') {
+    pathname = '/login'
   } else if (route.page === 'tasks') {
     pathname = '/tasks'
     addParam(params, 'taskId', route.taskId)
@@ -209,6 +212,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
   const legacyState = parseLegacyState(params)
   if (legacyState) return legacyState
 
+  if (pathname === '/login') return { page: 'login' }
   if (pathname === '/' || pathname === '/dashboard') return { page: 'dashboard' }
   if (pathname === '/tasks') {
     return {
