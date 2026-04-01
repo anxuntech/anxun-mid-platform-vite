@@ -10,6 +10,9 @@ jobs:
   deploy-production:
     name: Build and Deploy to Production
     runs-on: ubuntu-latest
+    env:
+      WEBHOOK_DEPLOY_PATH: ${{ secrets.WEBHOOK_DEPLOY_PATH }}
+      WEBHOOK_PORT: ${{ secrets.WEBHOOK_PORT }}
 
     steps:
       - name: Checkout repository
@@ -47,3 +50,28 @@ jobs:
           rsync -az --delete \
             dist/ \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/"
+
+      - name: Ensure remote webhook path exists
+        if: ${{ env.WEBHOOK_DEPLOY_PATH != '' }}
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "mkdir -p '${{ env.WEBHOOK_DEPLOY_PATH }}'"
+
+      - name: Sync webhook server to remote host
+        if: ${{ env.WEBHOOK_DEPLOY_PATH != '' }}
+        run: |
+          rsync -az --delete \
+            --exclude ".logs" \
+            server/ \
+            package.json \
+            package-lock.json \
+            ecosystem.config.cjs \
+            deploy/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ env.WEBHOOK_DEPLOY_PATH }}/"
+
+      - name: Restart webhook service with pm2
+        if: ${{ env.WEBHOOK_DEPLOY_PATH != '' }}
+        run: |
+          REMOTE_WEBHOOK_PORT="${WEBHOOK_PORT:-8787}"
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd '${{ env.WEBHOOK_DEPLOY_PATH }}' && chmod +x deploy/webhook/reload-webhook.sh && WEBHOOK_PORT='${REMOTE_WEBHOOK_PORT}' ./deploy/webhook/reload-webhook.sh '${{ env.WEBHOOK_DEPLOY_PATH }}' '${REMOTE_WEBHOOK_PORT}'"
