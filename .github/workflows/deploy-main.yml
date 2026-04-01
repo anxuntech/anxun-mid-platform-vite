@@ -62,16 +62,17 @@ jobs:
         run: |
           rsync -az --delete \
             --exclude ".logs" \
-            server/ \
+            server \
             package.json \
             package-lock.json \
             ecosystem.config.cjs \
-            deploy/ \
+            deploy \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ env.WEBHOOK_DEPLOY_PATH }}/"
 
       - name: Restart webhook service with pm2
         if: ${{ env.WEBHOOK_DEPLOY_PATH != '' }}
         run: |
           REMOTE_WEBHOOK_PORT="${WEBHOOK_PORT:-8787}"
+          REMOTE_WEBHOOK_SCRIPT="${{ env.WEBHOOK_DEPLOY_PATH }}/deploy/webhook/reload-webhook.sh"
           ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "cd '${{ env.WEBHOOK_DEPLOY_PATH }}' && chmod +x deploy/webhook/reload-webhook.sh && WEBHOOK_PORT='${REMOTE_WEBHOOK_PORT}' ./deploy/webhook/reload-webhook.sh '${{ env.WEBHOOK_DEPLOY_PATH }}' '${REMOTE_WEBHOOK_PORT}'"
+            "test -f '${{ env.WEBHOOK_DEPLOY_PATH }}/server/index.js' && test -f '${{ env.WEBHOOK_DEPLOY_PATH }}/package.json' && test -f '${{ env.WEBHOOK_DEPLOY_PATH }}/package-lock.json' && test -f '${{ env.WEBHOOK_DEPLOY_PATH }}/ecosystem.config.cjs' && test -f '${REMOTE_WEBHOOK_SCRIPT}' && chmod +x '${REMOTE_WEBHOOK_SCRIPT}' && WEBHOOK_PORT='${REMOTE_WEBHOOK_PORT}' '${REMOTE_WEBHOOK_SCRIPT}' '${{ env.WEBHOOK_DEPLOY_PATH }}' '${REMOTE_WEBHOOK_PORT}'"
