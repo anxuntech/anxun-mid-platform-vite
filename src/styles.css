@@ -726,6 +726,9 @@ select {
 @media (min-width: 1280px) {
   .delivery-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+.delivery-grid-compact {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
 
 .empty-state {
   border-radius: 20px;

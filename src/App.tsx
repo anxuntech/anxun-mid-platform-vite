@@ -2354,7 +2354,7 @@ function App() {
 
                 <div className="stack-lg">
                   <Card title="交付沉淀区" extra={<Badge tone="amber">面向月度交付与追溯</Badge>}>
-                    <div className="delivery-grid">
+                    <div className="delivery-grid delivery-grid-compact">
                       <div className="mini-card">
                         <div className="muted">可用于月度交付的记录数</div>
                         <div className="title-sm">{deliveryLedger.deliverableCount} 条</div>
