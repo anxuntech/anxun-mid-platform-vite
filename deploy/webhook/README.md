@@ -14,6 +14,17 @@
 3. 将 `deploy/nginx/caoliao-webhook.conf` 合入站点 `server` 配置
 4. 重载 Nginx
 
+如果需要直接按域名接站点，可优先使用完整站点配置：
+
+- `deploy/nginx/axsztech.cn.conf`
+
+该配置已包含：
+
+- `server_name axsztech.cn www.axsztech.cn`
+- 静态站点目录 `/var/www/html`
+- SPA 路由回退到 `/index.html`
+- `POST /api/caoliao/webhook` 反向代理到 `127.0.0.1:8787`
+
 ## pm2 启动
 
 ```bash
