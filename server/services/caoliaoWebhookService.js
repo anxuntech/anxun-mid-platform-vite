@@ -7,6 +7,17 @@ export const processCaoliaoWebhook = async ({ headers, rawBody, parsedBody }) =>
 
   try {
     const result = await dispatchBusinessProcess(parsedBody)
+    const identifyTrace = {
+      requestId,
+      formName: result.formName || '',
+      formNumber: result.formNumber || '',
+      serialNumber: result.serialNumber || '',
+      branch: result.formType,
+      identifyReason: result.identifyReason || '',
+      matchedKeywords: result.matchedKeywords || [],
+    }
+
+    console.log(`[caoliao] identify ${JSON.stringify(identifyTrace)}`)
     await writeWebhookLog({
       requestId,
       source: 'caoliao',
@@ -15,6 +26,7 @@ export const processCaoliaoWebhook = async ({ headers, rawBody, parsedBody }) =>
       body: parsedBody,
       rawBody,
       processStatus: 'success',
+      identifyTrace,
       dispatchResult: result,
     })
     console.log(`[caoliao] webhook processed requestId=${requestId} type=${result.formType}`)
