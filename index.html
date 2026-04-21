@@ -3,10 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="安巡安全服务平台，提供服务商工作台、企业安全画像、隐患闭环、月度快照、数据台账与草料 Webhook 接入能力。"
+    />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
     <title>安巡安全服务中台</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main>
+        <h1>安巡安全服务平台</h1>
+        <p>
+          安巡安全服务平台面向服务商、企业、保险与监管角色，提供任务中心、企业安全画像、隐患闭环、月度快照、数据台账与服务记录能力。
+        </p>
+        <p>当前站点已支持草料 Webhook 接收入口：<code>/api/caoliao/webhook</code>。</p>
+      </main>
+    </div>
+    <noscript>安巡安全服务平台需要启用 JavaScript 以获得完整页面交互，但基础平台介绍与接口入口已可被外部读取。</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
