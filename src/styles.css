@@ -119,8 +119,11 @@ button { cursor: pointer; }
   box-shadow: 0 4px 24px rgba(15,23,42,.04);
 }
 .card-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   padding: 18px 20px; border-bottom: 1px solid #f1f5f9;
+}
+.card-head > * {
+  min-width: 0;
 }
 .card-title { font-size: 14px; font-weight: 700; }
 .card-body { padding: 20px; }
@@ -175,6 +178,8 @@ button { cursor: pointer; }
 .table th { padding: 12px 16px; text-align: left; white-space: nowrap; font-weight: 600; }
 .table td { padding: 12px 16px; border-top: 1px solid #f1f5f9; vertical-align: top; }
 .cell.strong { font-weight: 700; color: #0f172a; white-space: nowrap; }
+.cell-nowrap { white-space: nowrap; }
+.cell-code { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wrap-cell { white-space: normal; word-break: break-word; min-width: 220px; }
 .row-active { background: #f8fafc; }
 .row-active-panel { border-color: #cbd5e1; background: #f8fafc; }
@@ -255,7 +260,7 @@ select {
   .task-status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 1280px) {
-  .task-status-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .task-status-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
 .task-status-card {
   width: 100%;
@@ -413,6 +418,8 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
+  justify-content: flex-end;
 }
 .task-quick-chip {
   border: 1px solid #cbd5e1;

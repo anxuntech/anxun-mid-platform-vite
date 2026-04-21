@@ -1704,7 +1704,7 @@ function App() {
           </div>
           <div className="button-row">
             <Badge tone="blue">{roleLabel}</Badge>
-            <Badge tone="slate">{session?.name || '未登录'}</Badge>
+            {session?.name && session.name !== roleLabel ? <Badge tone="slate">{session.name}</Badge> : null}
             <button className="btn btn-light role-btn" onClick={handleLogout}><LogOut className="icon-sm" />退出登录</button>
           </div>
         </div>
@@ -2493,13 +2493,13 @@ function App() {
                     rows={taskRowsForPage}
                     renderRow={(item: TaskCenterItem) => (
                       <tr key={item.taskId} className={cn('clickable-row', selectedTaskId === item.taskId && 'row-active')} onClick={() => setSelectedTaskId(item.taskId)}>
-                        <td>{item.taskCode}</td>
+                        <td className="cell-code">{item.taskCode}</td>
                         <td className="cell strong wrap-cell">{item.taskName}</td>
                         <td className="wrap-cell">{item.enterpriseName}</td>
                         <td>{item.taskType}</td>
                         <td>{item.source}</td>
-                        <td>{item.assignTime}</td>
-                        <td>{item.dueTime}</td>
+                        <td className="cell-nowrap">{item.assignTime}</td>
+                        <td className="cell-nowrap">{item.dueTime}</td>
                         <td>{item.assignee}</td>
                         <td><TaskStatusBadge value={item.status} /></td>
                         <td><PriorityBadge value={item.priority} /></td>
