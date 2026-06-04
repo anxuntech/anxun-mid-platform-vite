@@ -1,4 +1,9 @@
-import { handleCaoliaoWebhookRoute, isCaoliaoWebhookRoute } from './caoliaoRoutes.js'
+import {
+  handleCaoliaoDataRoute,
+  handleCaoliaoWebhookRoute,
+  isCaoliaoDataRoute,
+  isCaoliaoWebhookRoute,
+} from './caoliaoRoutes.js'
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -11,6 +16,11 @@ const sendJson = (response, statusCode, payload) => {
 export const routeRequest = async (request, response) => {
   if (isCaoliaoWebhookRoute(request)) {
     await handleCaoliaoWebhookRoute(request, response)
+    return
+  }
+
+  if (isCaoliaoDataRoute(request)) {
+    await handleCaoliaoDataRoute(request, response)
     return
   }
 

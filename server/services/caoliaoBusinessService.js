@@ -1,11 +1,12 @@
-// Phase 1 of Caoliao integration: keep recognition, routing and traceable logs lightweight.
+// 草料接入第二阶段：把真实表单识别为中台可消费的业务记录。
 
 const normalizeText = value => (typeof value === 'string' ? value.trim().toLowerCase() : '')
 
 const uniqueKeywords = values => [...new Set(values.filter(Boolean))]
 
 const includesAny = (text, keywords) => {
-  const matchedKeywords = keywords.filter(keyword => text.includes(keyword.toLowerCase()))
+  const normalizedText = normalizeText(text)
+  const matchedKeywords = keywords.filter(keyword => normalizedText.includes(normalizeText(keyword)))
   return {
     matched: matchedKeywords.length > 0,
     matchedKeywords,
@@ -20,85 +21,112 @@ const inspectPayloadText = payload => {
   }
 }
 
-const collectFieldTexts = fields => {
+const stringifyValue = value => {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+const collectFieldItems = fields => {
   if (!fields) return []
 
   if (Array.isArray(fields)) {
-    return fields.flatMap(field => {
-      if (!field || typeof field !== 'object') return []
-
-      const values = [
-        field.name,
-        field.label,
-        field.title,
-        field.key,
-        field.fieldName,
-        field.field_name,
-        field.value,
-        field.text,
-        field.content,
-        field.result,
-      ]
-
-      return values.filter(item => typeof item === 'string' && item.trim())
-    })
+    return fields
+      .filter(field => field && typeof field === 'object')
+      .map(field => {
+        const name = field.name || field.label || field.title || field.key || field.fieldName || field.field_name || ''
+        const value = field.value ?? field.text ?? field.content ?? field.result ?? field.values ?? ''
+        return {
+          name: stringifyValue(name),
+          value: stringifyValue(value),
+          raw: field,
+        }
+      })
   }
 
   if (typeof fields === 'object') {
-    return Object.entries(fields).flatMap(([key, value]) => {
-      const collected = [key]
-
-      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        collected.push(String(value))
-      } else if (value && typeof value === 'object') {
-        try {
-          collected.push(JSON.stringify(value))
-        } catch {
-          collected.push(String(value))
-        }
-      }
-
-      return collected.filter(item => typeof item === 'string' && item.trim())
-    })
+    return Object.entries(fields).map(([name, value]) => ({
+      name: stringifyValue(name),
+      value: stringifyValue(value),
+      raw: value,
+    }))
   }
 
   return []
 }
 
+const findFieldValue = (fieldItems, keywords) => {
+  const item = fieldItems.find(field => keywords.some(keyword => field.name.includes(keyword)))
+  return item?.value || ''
+}
+
+const collectEvidenceFiles = fieldItems => {
+  const urlPattern = /https?:\/\/[^\s"'，,]+/g
+  return fieldItems.flatMap(field => {
+    const text = `${field.name} ${field.value}`
+    const urls = text.match(urlPattern) || []
+    return urls.map((url, index) => ({
+      title: field.name || `现场证据 ${index + 1}`,
+      url,
+    }))
+  })
+}
+
 const getFormContext = payload => {
   const refData = payload?.ref_data || payload?.refData || {}
   const form = refData?.form || {}
+  const fields = refData?.fields || payload?.fields || payload?.data || payload?.form_data || payload?.formData
+  const fieldItems = collectFieldItems(fields)
+  const fieldSearchText = fieldItems.map(field => `${field.name} ${field.value}`).join(' | ')
 
   const formName = form?.name || payload?.form_name || payload?.formName || payload?.title || ''
   const formNumber = form?.number || payload?.form_number || payload?.formNumber || ''
   const serialNumber =
-    refData?.serial_number || refData?.serialNumber || payload?.serial_number || payload?.serialNumber || ''
+    refData?.serial_number ||
+    refData?.serialNumber ||
+    payload?.serial_number ||
+    payload?.serialNumber ||
+    payload?.formSerialNumber ||
+    ''
   const directType = normalizeText(payload?.formType || payload?.form_type || payload?.bizType || payload?.biz_type)
-  const payloadText = inspectPayloadText(payload)
-  const fieldTexts = collectFieldTexts(refData?.fields || payload?.fields || payload?.data || payload?.form_data)
-  const fieldSearchText = fieldTexts.join(' | ').toLowerCase()
 
   return {
     formName,
     formNumber,
     serialNumber,
     directType,
-    payloadText,
+    payloadText: inspectPayloadText(payload),
+    fieldItems,
     fieldSearchText,
   }
 }
 
-const hazardKeywords = ['隐患', 'hazard']
+const hazardKeywords = ['隐患', '整改问题', '风险上报', 'hazard']
 const serviceRecordFormKeywords = ['检查', '点检', '巡检', '灭火器', '消火栓', '消防设备', '器材检查']
-const serviceRecordFieldKeywords = ['检查结果', '点检结果', '设备类型', '灭火器', '消火栓', '压力', '铅封', '有效期', '外观', '是否正常']
+const serviceRecordFieldKeywords = [
+  '检查结果',
+  '点检结果',
+  '设备类型',
+  '灭火器',
+  '消火栓',
+  '压力',
+  '铅封',
+  '有效期',
+  '外观',
+  '是否正常',
+]
 const taskKeywords = ['任务执行', '任务反馈', '任务回执', '整改回执']
 
 export const identifyFormBranch = payload => {
   const context = getFormContext(payload)
-  const normalizedFormName = normalizeText(context.formName)
 
   const hazardDirectMatch = context.directType.includes('hazard') || context.directType.includes('隐患')
-  const hazardFormMatch = includesAny(normalizedFormName, hazardKeywords)
+  const hazardFormMatch = includesAny(context.formName, hazardKeywords)
   const hazardPayloadMatch = includesAny(context.payloadText, hazardKeywords)
 
   if (hazardDirectMatch || hazardFormMatch.matched || hazardPayloadMatch.matched) {
@@ -114,7 +142,7 @@ export const identifyFormBranch = payload => {
     }
   }
 
-  const serviceFormMatch = includesAny(normalizedFormName, serviceRecordFormKeywords)
+  const serviceFormMatch = includesAny(context.formName, serviceRecordFormKeywords)
   const serviceFieldMatch = includesAny(context.fieldSearchText, serviceRecordFieldKeywords)
   const serviceDirectMatch =
     context.directType.includes('service') ||
@@ -144,19 +172,14 @@ export const identifyFormBranch = payload => {
     }
   }
 
-  const taskDirectMatch = context.directType.includes('task') || context.directType.includes('任务')
-  const taskFormMatch = includesAny(normalizedFormName, taskKeywords)
+  const taskFormMatch = includesAny(context.formName, taskKeywords)
   const taskPayloadMatch = includesAny(context.payloadText, taskKeywords)
 
-  if (taskDirectMatch || taskFormMatch.matched || taskPayloadMatch.matched) {
+  if (taskFormMatch.matched || taskPayloadMatch.matched) {
     return {
       branch: 'task',
-      identifyReason: taskDirectMatch ? 'matched-direct-type' : 'matched-task-keywords',
-      matchedKeywords: uniqueKeywords([
-        ...(taskDirectMatch ? ['task-direct-type'] : []),
-        ...taskFormMatch.matchedKeywords,
-        ...taskPayloadMatch.matchedKeywords,
-      ]),
+      identifyReason: 'matched-task-keywords',
+      matchedKeywords: uniqueKeywords([...taskFormMatch.matchedKeywords, ...taskPayloadMatch.matchedKeywords]),
       ...context,
     }
   }
@@ -169,46 +192,99 @@ export const identifyFormBranch = payload => {
   }
 }
 
+const getSubmittedAt = payload =>
+  payload?.submittedAt ||
+  payload?.submitTime ||
+  payload?.submit_time ||
+  payload?.createdAt ||
+  payload?.create_time ||
+  payload?.ref_data?.submit_time ||
+  payload?.ref_data?.submittedAt ||
+  new Date().toISOString()
+
+const getEnterpriseName = (payload, fieldItems) =>
+  findFieldValue(fieldItems, ['企业名称', '单位名称', '公司名称', '企业', '单位']) ||
+  payload?.enterpriseName ||
+  payload?.enterprise_name ||
+  payload?.data?.enterpriseName ||
+  '未识别企业'
+
+const getExecutor = (payload, fieldItems) =>
+  findFieldValue(fieldItems, ['检查人', '点检人', '执行人', '填报人', '提交人']) ||
+  payload?.submitter ||
+  payload?.operator ||
+  payload?.user?.name ||
+  '草料表单提交人'
+
+const getResultSummary = (payload, fieldItems, fallback) =>
+  findFieldValue(fieldItems, ['检查结果', '点检结果', '处理结果', '结果', '备注', '说明', '是否正常']) ||
+  payload?.summary ||
+  payload?.title ||
+  fallback
+
+const buildBaseRecord = (payload, identifyContext) => {
+  const fieldItems = identifyContext?.fieldItems || []
+  const formName = identifyContext?.formName || payload?.formName || payload?.form_name || ''
+
+  return {
+    requestSource: 'caoliao',
+    formName,
+    formNumber: identifyContext?.formNumber || '',
+    serialNumber: identifyContext?.serialNumber || '',
+    enterpriseName: getEnterpriseName(payload, fieldItems),
+    submittedAt: getSubmittedAt(payload),
+    executor: getExecutor(payload, fieldItems),
+    rawFields: fieldItems.map(field => ({ name: field.name, value: field.value })),
+    evidenceFiles: collectEvidenceFiles(fieldItems),
+  }
+}
+
 export const processTaskForm = async (payload, identifyContext) => {
   console.log('[caoliao] entered task form branch')
+  const base = buildBaseRecord(payload, identifyContext)
   return {
     formType: 'task',
     recognized: true,
-    summary: payload?.title || identifyContext?.formName || payload?.form_name || 'task form mapping pending',
+    summary: getResultSummary(payload, identifyContext.fieldItems, base.formName || '任务回传'),
     identifyReason: identifyContext?.identifyReason || 'matched-task-keywords',
     matchedKeywords: identifyContext?.matchedKeywords || [],
-    formName: identifyContext?.formName || '',
-    formNumber: identifyContext?.formNumber || '',
-    serialNumber: identifyContext?.serialNumber || '',
+    ...base,
   }
 }
 
 export const processHazardForm = async (payload, identifyContext) => {
   console.log('[caoliao] entered hazard form branch')
+  const base = buildBaseRecord(payload, identifyContext)
+  const fieldItems = identifyContext?.fieldItems || []
   return {
     formType: 'hazard',
     recognized: true,
-    summary: payload?.title || identifyContext?.formName || payload?.form_name || 'hazard form mapping pending',
+    hazardName: findFieldValue(fieldItems, ['隐患名称', '问题名称', '风险点']) || base.formName || '草料隐患上报',
+    hazardLevel: findFieldValue(fieldItems, ['隐患等级', '风险等级', '严重程度']) || '待判定',
+    responsiblePerson: findFieldValue(fieldItems, ['责任人', '整改人']) || '',
+    rectificationDeadline: findFieldValue(fieldItems, ['整改期限', '完成期限', '截止时间']) || '',
+    summary: getResultSummary(payload, fieldItems, base.formName || '隐患上报'),
     identifyReason: identifyContext?.identifyReason || 'matched-hazard-keywords',
     matchedKeywords: identifyContext?.matchedKeywords || [],
-    formName: identifyContext?.formName || '',
-    formNumber: identifyContext?.formNumber || '',
-    serialNumber: identifyContext?.serialNumber || '',
+    ...base,
   }
 }
 
 export const processServiceRecordForm = async (payload, identifyContext) => {
   console.log('[caoliao] entered service record branch')
+  const base = buildBaseRecord(payload, identifyContext)
+  const fieldItems = identifyContext?.fieldItems || []
   return {
     formType: 'serviceRecord',
     recognized: true,
-    summary:
-      payload?.title || identifyContext?.formName || payload?.form_name || 'service record mapping pending',
+    serviceType:
+      findFieldValue(fieldItems, ['服务类型', '检查类型', '点检类型', '设备类型']) ||
+      (base.formName.includes('灭火器') ? '消防设备点检' : base.formName || '现场检查'),
+    resultSummary: getResultSummary(payload, fieldItems, base.formName || '服务记录回传'),
+    recordStatus: '已回传',
     identifyReason: identifyContext?.identifyReason || 'matched-service-record-keywords',
     matchedKeywords: identifyContext?.matchedKeywords || [],
-    formName: identifyContext?.formName || '',
-    formNumber: identifyContext?.formNumber || '',
-    serialNumber: identifyContext?.serialNumber || '',
+    ...base,
   }
 }
 
@@ -223,7 +299,7 @@ export const dispatchBusinessProcess = async payload => {
   return {
     formType: 'unknown',
     recognized: false,
-    summary: 'form type not recognized in phase 1',
+    summary: '草料表单暂未匹配到中台业务分支',
     identifyReason: identifyContext.identifyReason,
     matchedKeywords: identifyContext.matchedKeywords,
     formName: identifyContext.formName,

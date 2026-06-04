@@ -1,4 +1,5 @@
-﻿import { dispatchBusinessProcess } from './caoliaoBusinessService.js'
+import { dispatchBusinessProcess } from './caoliaoBusinessService.js'
+import { appendBusinessEvent } from './caoliaoDataStore.js'
 import { writeWebhookLog } from '../utils/fileLogger.js'
 
 export const processCaoliaoWebhook = async ({ headers, rawBody, parsedBody }) => {
@@ -18,6 +19,15 @@ export const processCaoliaoWebhook = async ({ headers, rawBody, parsedBody }) =>
     }
 
     console.log(`[caoliao] identify ${JSON.stringify(identifyTrace)}`)
+    await appendBusinessEvent({
+      requestId,
+      source: 'caoliao',
+      receivedAt,
+      branch: result.formType,
+      recognized: result.recognized,
+      identifyTrace,
+      record: result,
+    })
     await writeWebhookLog({
       requestId,
       source: 'caoliao',

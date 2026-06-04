@@ -41,7 +41,8 @@ export const handleCaoliaoWebhook = async (request, response) => {
 
   try {
     rawBody = await readRequestBody(request)
-    parsedBody = rawBody ? JSON.parse(rawBody) : {}
+    const normalizedBody = rawBody.replace(/^\uFEFF/, '').trim()
+    parsedBody = normalizedBody ? JSON.parse(normalizedBody) : {}
   } catch (error) {
     console.error('[caoliao] request body parse failed, continue with empty body', error)
   }
