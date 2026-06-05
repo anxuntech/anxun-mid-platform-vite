@@ -107,11 +107,16 @@ const getFormContext = payload => {
 }
 
 const hazardKeywords = ['隐患', '整改问题', '风险上报', 'hazard']
-const serviceRecordFormKeywords = ['检查', '点检', '巡检', '灭火器', '消火栓', '消防设备', '器材检查']
+const serviceRecordFormKeywords = ['检查', '点检', '巡检', '培训', '安全培训', '机械设备', '灭火器', '消火栓', '消防设备', '器材检查']
 const serviceRecordFieldKeywords = [
   '检查结果',
   '点检结果',
+  '培训结果',
+  '培训内容',
+  '培训主题',
+  '参训人数',
   '设备类型',
+  '机械设备',
   '灭火器',
   '消火栓',
   '压力',
@@ -202,11 +207,19 @@ const getSubmittedAt = payload =>
   payload?.ref_data?.submittedAt ||
   new Date().toISOString()
 
-const getEnterpriseName = (payload, fieldItems) =>
+const inferEnterpriseNameFromFormName = formName => {
+  if (!formName) return ''
+  const normalized = String(formName).trim()
+  const match = normalized.match(/^(.+?)(?:灭火器|消火栓|消防设备|器材|安全|隐患|巡检|点检|检查|自查|复查)/)
+  return (match?.[1] || '').trim()
+}
+
+const getEnterpriseName = (payload, fieldItems, formName = '') =>
   findFieldValue(fieldItems, ['企业名称', '单位名称', '公司名称', '企业', '单位']) ||
   payload?.enterpriseName ||
   payload?.enterprise_name ||
   payload?.data?.enterpriseName ||
+  inferEnterpriseNameFromFormName(formName) ||
   '未识别企业'
 
 const getExecutor = (payload, fieldItems) =>
@@ -231,7 +244,7 @@ const buildBaseRecord = (payload, identifyContext) => {
     formName,
     formNumber: identifyContext?.formNumber || '',
     serialNumber: identifyContext?.serialNumber || '',
-    enterpriseName: getEnterpriseName(payload, fieldItems),
+    enterpriseName: getEnterpriseName(payload, fieldItems, formName),
     submittedAt: getSubmittedAt(payload),
     executor: getExecutor(payload, fieldItems),
     rawFields: fieldItems.map(field => ({ name: field.name, value: field.value })),
@@ -278,8 +291,8 @@ export const processServiceRecordForm = async (payload, identifyContext) => {
     formType: 'serviceRecord',
     recognized: true,
     serviceType:
-      findFieldValue(fieldItems, ['服务类型', '检查类型', '点检类型', '设备类型']) ||
-      (base.formName.includes('灭火器') ? '消防设备点检' : base.formName || '现场检查'),
+      findFieldValue(fieldItems, ['服务类型', '培训主题', '检查类型', '点检类型', '设备类型']) ||
+      (base.formName.includes('培训') ? '安全培训' : base.formName.includes('灭火器') || base.formName.includes('消火栓') ? '消防设备点检' : base.formName.includes('机械设备') ? '机械设备检查' : base.formName || '现场检查'),
     resultSummary: getResultSummary(payload, fieldItems, base.formName || '服务记录回传'),
     recordStatus: '已回传',
     identifyReason: identifyContext?.identifyReason || 'matched-service-record-keywords',

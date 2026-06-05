@@ -170,12 +170,14 @@ const enterprises: Enterprise[] = [
   { id: 'ent-010', name: '河北华川医养设备有限公司', industry: '医疗器械', area: '宁晋县', leader: '崔总', phone: '13800010000', score: 90, level: 'A', risk: '低', tags: ['洁净车间', '仓储', '实验室'], deviceCount: 13 },
   { id: 'ent-011', name: '河北同创汽车零部件有限公司', industry: '汽车零部件', area: '沙河市', leader: '高经理', phone: '13800011110', score: 79, level: 'B', risk: '中', tags: ['冲压', '焊接', '喷涂'], deviceCount: 17 },
   { id: 'ent-012', name: '河北安晟新能源科技有限公司', industry: '新能源制造', area: '内丘县', leader: '冯总', phone: '13800012220', score: 66, level: 'C', risk: '高', tags: ['储能', 'PACK', '充放电'], deviceCount: 16 },
+  { id: 'ent-013', name: '天成纺织', industry: '纺织服装', area: '待补充', leader: '待补充', phone: '待补充', score: 78, level: 'B', risk: '中', tags: ['纺织车间', '机械设备', '消防器材'], deviceCount: 0 },
 ]
 
 const opsMap: Record<string, { safety: number; fire: number; pending: number; onTime: number; coverage: number }> = {
   'ent-001': { safety: 22, fire: 48, pending: 3, onTime: 75, coverage: 92 }, 'ent-002': { safety: 14, fire: 30, pending: 5, onTime: 63, coverage: 84 }, 'ent-003': { safety: 18, fire: 36, pending: 0, onTime: 96, coverage: 95 }, 'ent-004': { safety: 24, fire: 50, pending: 0, onTime: 100, coverage: 98 },
   'ent-005': { safety: 17, fire: 32, pending: 4, onTime: 70, coverage: 87 }, 'ent-006': { safety: 19, fire: 42, pending: 1, onTime: 92, coverage: 93 }, 'ent-007': { safety: 15, fire: 28, pending: 5, onTime: 61, coverage: 81 }, 'ent-008': { safety: 20, fire: 40, pending: 1, onTime: 95, coverage: 96 },
   'ent-009': { safety: 16, fire: 34, pending: 2, onTime: 84, coverage: 90 }, 'ent-010': { safety: 23, fire: 47, pending: 0, onTime: 99, coverage: 98 }, 'ent-011': { safety: 18, fire: 37, pending: 2, onTime: 88, coverage: 91 }, 'ent-012': { safety: 16, fire: 31, pending: 4, onTime: 73, coverage: 86 },
+  'ent-013': { safety: 1, fire: 0, pending: 0, onTime: 100, coverage: 35 },
 }
 
 const hazards: Hazard[] = [
@@ -293,6 +295,9 @@ const toneMap: Record<Tone, string> = { red: 'badge-red', amber: 'badge-amber', 
 const cn = (...v: Array<string | false | undefined | null>) => v.filter(Boolean).join(' ')
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 const round = (v: number) => Number(v.toFixed(2))
+const caoliaoEnterpriseIdPrefix = 'caoliao-enterprise:'
+const buildCaoliaoEnterpriseId = (name: string, requestId: string) => `${caoliaoEnterpriseIdPrefix}${encodeURIComponent(name || requestId || 'unknown')}`
+const isCaoliaoExternalEnterpriseId = (id: string) => id.startsWith(caoliaoEnterpriseIdPrefix)
 const formatServiceTime = (value?: string) => {
   if (!value) return '待补充'
   const normalized = value.includes('T') ? value.slice(0, 16).replace('T', ' ') : value.slice(0, 16)
@@ -308,7 +313,7 @@ const bias = (m: string) => ({ '2026-01': -2, '2026-02': -1, '2026-03': 0, '2026
 const defaultEnterpriseId = 'ent-002'
 const taskStatusOrder: UnifiedTaskStatus[] = ['待执行', '执行中', '已发现隐患', '待整改', '待复查', '已闭环', '已超期']
 const taskStatusTone: Record<UnifiedTaskStatus, Tone> = { 待执行: 'slate', 执行中: 'blue', 已发现隐患: 'amber', 待整改: 'amber', 待复查: 'violet', 已闭环: 'emerald', 已超期: 'red' }
-const insuranceStatusMap: Record<string, InsuranceStatus> = { 'ent-001': '续保跟进', 'ent-002': '在保', 'ent-003': '在保', 'ent-004': '在保', 'ent-005': '续保跟进', 'ent-006': '在保', 'ent-007': '待核保', 'ent-008': '在保', 'ent-009': '续保跟进', 'ent-010': '在保', 'ent-011': '在保', 'ent-012': '续保跟进' }
+const insuranceStatusMap: Record<string, InsuranceStatus> = { 'ent-001': '续保跟进', 'ent-002': '在保', 'ent-003': '在保', 'ent-004': '在保', 'ent-005': '续保跟进', 'ent-006': '在保', 'ent-007': '待核保', 'ent-008': '在保', 'ent-009': '续保跟进', 'ent-010': '在保', 'ent-011': '在保', 'ent-012': '续保跟进', 'ent-013': '续保跟进' }
 const insuranceStatusTone: Record<InsuranceStatus, Tone> = { 在保: 'emerald', 续保跟进: 'amber', 待核保: 'slate' }
 const surveyAssignTimeMap: Record<string, string> = {
   'sur-001': '2026-03-14 09:20',
@@ -510,8 +515,9 @@ function App() {
 
   const scopedCaoliaoServiceRecords = useMemo(() => caoliaoServiceRecords.filter(record => {
     const enterpriseName = (record.enterpriseName || '').trim()
-    return scopedEnterprises.some(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
-  }), [caoliaoServiceRecords, scopedEnterprises])
+    const matchedEnterprise = scopedEnterprises.some(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
+    return matchedEnterprise || session?.role === 'admin'
+  }), [caoliaoServiceRecords, scopedEnterprises, session?.role])
 
   const activeScheme = schemeRows.find(item => item.status === '启用') || schemeRows[0]
   const selectedEnterprise = scopedEnterprises.find(item => item.id === selectedEnterpriseId) || scopedEnterprises[0] || enterprises[0]
@@ -1044,7 +1050,7 @@ function App() {
     const caoliaoRows = scopedCaoliaoServiceRecords.map((record, index) => {
       const enterpriseName = (record.enterpriseName || '').trim()
       const matchedEnterprise = scopedEnterprises.find(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
-      if (!matchedEnterprise) return null
+      if (!matchedEnterprise && session?.role !== 'admin') return null
       const evidenceFiles = (record.evidenceFiles || []).map((file, fileIndex) => ({
         id: `caoliao-${record.requestId || record.serialNumber || index}-${fileIndex}`,
         title: file.title || `草料现场材料 ${fileIndex + 1}`,
@@ -1053,13 +1059,14 @@ function App() {
         description: '由草料表单回传的现场材料。',
       }))
       const evidenceCount = evidenceFiles.length
-      const relatedSnapshotId = snapshotRows.find(row => row.enterpriseId === matchedEnterprise.id)?.snapshotId || ''
+      const enterpriseId = matchedEnterprise?.id || buildCaoliaoEnterpriseId(enterpriseName || '未识别企业', record.requestId)
+      const relatedSnapshotId = matchedEnterprise ? snapshotRows.find(row => row.enterpriseId === matchedEnterprise.id)?.snapshotId || '' : ''
       const formName = record.formName || '草料服务表单'
       const formNumber = record.formNumber ? `表单编号 ${record.formNumber}` : '表单编号待补充'
       return {
         recordId: record.serialNumber || record.requestId || `CL-202606-${String(index + 1).padStart(3, '0')}`,
-        enterpriseId: matchedEnterprise.id,
-        enterpriseName: matchedEnterprise.name,
+        enterpriseId,
+        enterpriseName: matchedEnterprise?.name || enterpriseName || '未识别企业',
         serviceType: record.serviceType || '草料服务记录',
         sourceTaskId: '',
         sourceTaskName: `草料表单：${formName}`,
@@ -1077,7 +1084,7 @@ function App() {
       }
     }).filter((item): item is NonNullable<typeof item> => !!item)
     return [...caoliaoRows, ...taskRows]
-  }, [scopedCaoliaoServiceRecords, scopedEnterprises, snapshotRows, taskCenterRows, taskUploadedEvidence])
+  }, [scopedCaoliaoServiceRecords, scopedEnterprises, session?.role, snapshotRows, taskCenterRows, taskUploadedEvidence])
   const visibleCaoliaoRecordCount = serviceLedgerRows.filter(item => item.sourceTaskName.startsWith('草料表单')).length
   const filteredServiceLedgerRows = serviceLedgerRows.filter(item => {
     const matchesEnterprise = recordEnterpriseFilter === 'all' || item.enterpriseId === recordEnterpriseFilter
@@ -1095,6 +1102,7 @@ function App() {
     return matchesEnterprise && matchesType && matchesExecutor && matchesTime && matchesStatus && matchesQuick
   })
   const selectedRecord = filteredServiceLedgerRows.find(item => item.recordId === selectedRecordId) || serviceLedgerRows.find(item => item.recordId === selectedRecordId) || null
+  const selectedRecordHasEnterpriseProfile = !!selectedRecord && !isCaoliaoExternalEnterpriseId(selectedRecord.enterpriseId)
   const visibleRecordDetail = page === 'devices' && !!selectedRecord
   const serviceLedgerOverview = {
     monthlyServiceCount: serviceLedgerRows.filter(item => item.executedAt.startsWith(dashboardMonth)).length,
@@ -2512,7 +2520,7 @@ function App() {
 
                         <div className="button-row">
                           {selectedRecord.sourceTaskId && <button className="btn btn-dark" onClick={() => openHazardSourceTask(selectedRecord.sourceTaskId, selectedRecord.enterpriseId)}>查看任务详情</button>}
-                          <button className="btn btn-light" onClick={() => openSnapshotEnterprise(selectedRecord.enterpriseId, selectedMonth)}>查看企业画像</button>
+                          {selectedRecordHasEnterpriseProfile ? <button className="btn btn-light" onClick={() => openSnapshotEnterprise(selectedRecord.enterpriseId, selectedMonth)}>查看企业画像</button> : <button className="btn btn-light" disabled>企业画像待建档</button>}
                           {selectedRecord.relatedHazardId && <button className="btn btn-light" onClick={() => navigateToRoute({ page: 'hazards', enterpriseId: selectedRecord.enterpriseId, hazardEnterpriseId: selectedRecord.enterpriseId, selectedHazardId: selectedRecord.relatedHazardId, hazardListScope: 'all' })}>查看隐患闭环</button>}
                           {selectedRecord.relatedSnapshotId && <button className="btn btn-light" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: selectedRecord.enterpriseId, selectedSnapshotId: selectedRecord.relatedSnapshotId })}>查看月度快照</button>}
                         </div>

@@ -24,7 +24,7 @@ export const authAccounts: AuthAccount[] = [
   { username: 'admin', password: 'Anxun@2026', name: '平台管理员', role: 'admin', defaultPage: 'dashboard', enterpriseIds: [] },
   { username: 'ent_xintai01', password: 'Qiye@2026', name: '邢台新源注塑包装有限公司', role: 'enterprise', defaultPage: 'users', enterpriseIds: ['ent-002'] },
   { username: 'ent_hanglan01', password: 'Qiye@2026', name: '河北启航橡塑制品有限公司', role: 'enterprise', defaultPage: 'users', enterpriseIds: ['ent-007'] },
-  { username: 'svc_team01', password: 'Fuwu@2026', name: '安巡服务团队一组', role: 'service', defaultPage: 'dashboard', enterpriseIds: ['ent-001', 'ent-002', 'ent-005', 'ent-007', 'ent-012'] },
+  { username: 'svc_team01', password: 'Fuwu@2026', name: '安巡服务团队一组', role: 'service', defaultPage: 'dashboard', enterpriseIds: ['ent-001', 'ent-002', 'ent-005', 'ent-007', 'ent-012', 'ent-013'] },
   { username: 'ins_picc01', password: 'Baoxian@2026', name: '保险风控专员', role: 'insurer', defaultPage: 'scoreTrend', enterpriseIds: [] },
   { username: 'gov_emg01', password: 'Yingji@2026', name: '应急监管专员', role: 'regulator', defaultPage: 'bigscreen', enterpriseIds: [] },
 ]

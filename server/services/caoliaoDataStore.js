@@ -16,6 +16,12 @@ const safeJsonParse = line => {
   }
 }
 
+const isTestBusinessEvent = event => {
+  const serialNumber = String(event?.record?.serialNumber || event?.identifyTrace?.serialNumber || '').toUpperCase()
+  const requestId = String(event?.requestId || '').toUpperCase()
+  return serialNumber.includes('TEST') || serialNumber.includes('ONLINE-TEST') || requestId.includes('TEST')
+}
+
 export const appendBusinessEvent = async event => {
   await ensureDataDir()
   await appendFile(eventsFile, `${JSON.stringify(event)}\n`, 'utf8')
@@ -30,6 +36,7 @@ export const readBusinessEvents = async ({ branch, limit = 50 } = {}) => {
       .map(safeJsonParse)
       .filter(Boolean)
       .filter(event => !branch || event.branch === branch)
+      .filter(event => !isTestBusinessEvent(event))
       .reverse()
 
     return events.slice(0, Math.max(1, Math.min(Number(limit) || 50, 200)))
