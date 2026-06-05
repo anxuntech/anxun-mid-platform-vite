@@ -19,7 +19,8 @@ const safeJsonParse = line => {
 const isTestBusinessEvent = event => {
   const serialNumber = String(event?.record?.serialNumber || event?.identifyTrace?.serialNumber || '').toUpperCase()
   const requestId = String(event?.requestId || '').toUpperCase()
-  return serialNumber.includes('TEST') || serialNumber.includes('ONLINE-TEST') || requestId.includes('TEST')
+  const formName = String(event?.record?.formName || event?.identifyTrace?.formName || '')
+  return serialNumber.includes('TEST') || serialNumber.includes('ONLINE-TEST') || serialNumber.includes('TRAIN') || requestId.includes('TEST') || formName.includes('培训')
 }
 
 export const appendBusinessEvent = async event => {

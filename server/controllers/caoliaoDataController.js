@@ -45,6 +45,24 @@ export const handleCaoliaoServiceRecords = async (request, response) => {
   })
 }
 
+export const handleCaoliaoHazards = async (request, response) => {
+  if (request.method !== 'GET') {
+    sendJson(response, 405, { success: false, message: 'method not allowed' })
+    return
+  }
+
+  const events = await readBusinessEvents({ branch: 'hazard', limit: getLimit(request) })
+  sendJson(response, 200, {
+    success: true,
+    total: events.length,
+    items: events.map(event => ({
+      requestId: event.requestId,
+      receivedAt: event.receivedAt,
+      ...event.record,
+    })),
+  })
+}
+
 export const handleCaoliaoHealth = async (_request, response) => {
   sendJson(response, 200, {
     success: true,

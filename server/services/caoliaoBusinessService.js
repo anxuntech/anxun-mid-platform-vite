@@ -107,14 +107,26 @@ const getFormContext = payload => {
 }
 
 const hazardKeywords = ['隐患', '整改问题', '风险上报', 'hazard']
-const serviceRecordFormKeywords = ['检查', '点检', '巡检', '培训', '安全培训', '机械设备', '灭火器', '消火栓', '消防设备', '器材检查']
+const knownHazardFormNumbers = ['D159']
+const knownRectificationFormNumbers = ['D160']
+const knownServiceRecordFormMap = {
+  D105: '灭火器检查',
+  D107: '室内消火栓检查',
+  D108: '设备每日清洁卫生',
+  D110: '设备点检记录',
+  D111: '设备点检记录',
+  D112: '故障报修记录',
+}
+const knownServiceRecordFormNumbers = Object.keys(knownServiceRecordFormMap)
+const serviceRecordFormKeywords = ['检查', '点检', '巡检', '清洁', '卫生', '报修', '维修', '机械设备', '灭火器', '消火栓', '消防设备', '器材检查']
 const serviceRecordFieldKeywords = [
   '检查结果',
   '点检结果',
-  '培训结果',
-  '培训内容',
-  '培训主题',
-  '参训人数',
+  '清洁结果',
+  '卫生情况',
+  '报修内容',
+  '故障描述',
+  '维修结果',
   '设备类型',
   '机械设备',
   '灭火器',
@@ -129,6 +141,25 @@ const taskKeywords = ['任务执行', '任务反馈', '任务回执', '整改回
 
 export const identifyFormBranch = payload => {
   const context = getFormContext(payload)
+  const normalizedFormNumber = normalizeText(context.formNumber).toUpperCase()
+
+  if (knownHazardFormNumbers.includes(normalizedFormNumber)) {
+    return {
+      branch: 'hazard',
+      identifyReason: 'matched-form-number',
+      matchedKeywords: [normalizedFormNumber],
+      ...context,
+    }
+  }
+
+  if (knownServiceRecordFormNumbers.includes(normalizedFormNumber) || knownRectificationFormNumbers.includes(normalizedFormNumber)) {
+    return {
+      branch: 'serviceRecord',
+      identifyReason: 'matched-form-number',
+      matchedKeywords: [normalizedFormNumber],
+      ...context,
+    }
+  }
 
   const hazardDirectMatch = context.directType.includes('hazard') || context.directType.includes('隐患')
   const hazardFormMatch = includesAny(context.formName, hazardKeywords)
@@ -155,7 +186,7 @@ export const identifyFormBranch = payload => {
     context.directType.includes('record') ||
     context.directType.includes('inspection') ||
     context.directType.includes('check')
-  const serviceNumberMatch = normalizeText(context.formNumber) === 'd21'
+  const serviceNumberMatch = false
 
   if (serviceFormMatch.matched || serviceFieldMatch.matched || serviceDirectMatch || serviceNumberMatch) {
     return {
@@ -167,12 +198,7 @@ export const identifyFormBranch = payload => {
           : serviceFieldMatch.matched
             ? 'matched-field-keywords'
             : 'matched-direct-type',
-      matchedKeywords: uniqueKeywords([
-        ...(serviceNumberMatch ? ['D21'] : []),
-        ...(serviceDirectMatch ? ['service-direct-type'] : []),
-        ...serviceFormMatch.matchedKeywords,
-        ...serviceFieldMatch.matchedKeywords,
-      ]),
+      matchedKeywords: uniqueKeywords([...(serviceDirectMatch ? ['service-direct-type'] : []), ...serviceFormMatch.matchedKeywords, ...serviceFieldMatch.matchedKeywords]),
       ...context,
     }
   }
@@ -291,8 +317,10 @@ export const processServiceRecordForm = async (payload, identifyContext) => {
     formType: 'serviceRecord',
     recognized: true,
     serviceType:
+      knownServiceRecordFormMap[String(base.formNumber || '').toUpperCase()] ||
+      (knownRectificationFormNumbers.includes(String(base.formNumber || '').toUpperCase()) ? '整改反馈' : '') ||
       findFieldValue(fieldItems, ['服务类型', '培训主题', '检查类型', '点检类型', '设备类型']) ||
-      (base.formName.includes('培训') ? '安全培训' : base.formName.includes('灭火器') || base.formName.includes('消火栓') ? '消防设备点检' : base.formName.includes('机械设备') ? '机械设备检查' : base.formName || '现场检查'),
+      (base.formName.includes('灭火器') || base.formName.includes('消火栓') ? '消防设备点检' : base.formName.includes('机械设备') ? '机械设备检查' : base.formName || '现场检查'),
     resultSummary: getResultSummary(payload, fieldItems, base.formName || '服务记录回传'),
     recordStatus: '已回传',
     identifyReason: identifyContext?.identifyReason || 'matched-service-record-keywords',

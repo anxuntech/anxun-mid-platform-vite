@@ -129,6 +129,25 @@ type CaoliaoServiceRecord = {
   executor?: string
   evidenceFiles?: Array<{ title?: string; url?: string }>
 }
+type CaoliaoHazardRecord = {
+  requestId: string
+  receivedAt: string
+  formType: string
+  recognized: boolean
+  hazardName?: string
+  hazardDescription?: string
+  hazardLevel?: string
+  responsiblePerson?: string
+  rectificationDeadline?: string
+  summary?: string
+  formName?: string
+  formNumber?: string
+  serialNumber?: string
+  enterpriseName?: string
+  submittedAt?: string
+  executor?: string
+  evidenceFiles?: Array<{ title?: string; url?: string }>
+}
 type PortraitServiceRecord = { id: string; serviceType: string; time: string; executor: string; summary: string; status: string; relatedTaskId: string }
 type PortraitMonthlySnapshot = { month: string; score: number; levelName: string; levelColor: Tone; riskLevel: Risk; closedRate: number; note: string; serviceSummary: string; hazardChange: string; keyActions: string[]; openHazardCount: number; overdueHazardCount: number }
 type TaskCenterItem = {
@@ -451,6 +470,7 @@ function App() {
   const [recordStatusFilter, setRecordStatusFilter] = useState('all')
   const [recordQuickFilter, setRecordQuickFilter] = useState('all')
   const [caoliaoServiceRecords, setCaoliaoServiceRecords] = useState<CaoliaoServiceRecord[]>([])
+  const [caoliaoHazardRecords, setCaoliaoHazardRecords] = useState<CaoliaoHazardRecord[]>([])
   const [caoliaoSyncStatus, setCaoliaoSyncStatus] = useState<'同步中' | '已同步' | '同步失败'>('同步中')
   const [caoliaoLastSyncAt, setCaoliaoLastSyncAt] = useState('')
   const [insurerAreaFilter, setInsurerAreaFilter] = useState('all')
@@ -477,7 +497,6 @@ function App() {
   }, [allEnterpriseIds, session])
   const scopedEnterprises = useMemo(() => enterprises.filter(item => allowedEnterpriseIds.includes(item.id)), [allowedEnterpriseIds])
   const scopedEnterpriseIds = useMemo(() => new Set(scopedEnterprises.map(item => item.id)), [scopedEnterprises])
-  const scopedHazards = useMemo(() => hazards.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds])
   const scopedSurveyTasks = useMemo(() => initialSurveyTasks.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds])
   const scopedServiceRecords = useMemo(() => initialServiceRecords.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds])
   const scopedApprovals = useMemo(() => approvals.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [approvals, scopedEnterpriseIds])
@@ -494,11 +513,15 @@ function App() {
     const loadCaoliaoRecords = async () => {
       try {
         setCaoliaoSyncStatus('同步中')
-        const response = await fetch('/api/caoliao/service-records?limit=100', { cache: 'no-store' })
-        if (!response.ok) throw new Error('service records unavailable')
-        const payload = await response.json()
+        const [serviceResponse, hazardResponse] = await Promise.all([
+          fetch('/api/caoliao/service-records?limit=100', { cache: 'no-store' }),
+          fetch('/api/caoliao/hazards?limit=100', { cache: 'no-store' }),
+        ])
+        if (!serviceResponse.ok || !hazardResponse.ok) throw new Error('caoliao records unavailable')
+        const [servicePayload, hazardPayload] = await Promise.all([serviceResponse.json(), hazardResponse.json()])
         if (!active) return
-        setCaoliaoServiceRecords(Array.isArray(payload.items) ? payload.items : [])
+        setCaoliaoServiceRecords(Array.isArray(servicePayload.items) ? servicePayload.items : [])
+        setCaoliaoHazardRecords(Array.isArray(hazardPayload.items) ? hazardPayload.items : [])
         setCaoliaoSyncStatus('已同步')
         setCaoliaoLastSyncAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
       } catch {
@@ -518,6 +541,29 @@ function App() {
     const matchedEnterprise = scopedEnterprises.some(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
     return matchedEnterprise || session?.role === 'admin'
   }), [caoliaoServiceRecords, scopedEnterprises, session?.role])
+
+  const scopedHazards = useMemo(() => {
+    const staticHazards = hazards.filter(item => scopedEnterpriseIds.has(item.enterpriseId))
+    const caoliaoHazards = caoliaoHazardRecords.map((record, index) => {
+      const enterpriseName = (record.enterpriseName || '').trim()
+      const matchedEnterprise = scopedEnterprises.find(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
+      if (!matchedEnterprise && session?.role !== 'admin') return null
+      const enterpriseId = matchedEnterprise?.id || buildCaoliaoEnterpriseId(enterpriseName || '未识别企业', record.requestId)
+      const levelText = record.hazardLevel || record.summary || record.hazardDescription || ''
+      const level: Risk = levelText.includes('高') || levelText.includes('严重') ? '高' : levelText.includes('低') || levelText.includes('一般') ? '低' : '中'
+      return {
+        id: record.serialNumber || record.requestId || `caoliao-hazard-${index + 1}`,
+        enterpriseId,
+        title: record.hazardName || record.hazardDescription || record.summary || record.formName || '草料隐患上报',
+        level,
+        status: '待整改' as HazardStatus,
+        source: record.formName ? `草料表单：${record.formName}` : '草料隐患上报',
+        foundAt: formatServiceTime(record.submittedAt || record.receivedAt),
+        deadline: record.rectificationDeadline || dashboardToday,
+      }
+    }).filter((item): item is Hazard => !!item)
+    return [...caoliaoHazards, ...staticHazards]
+  }, [caoliaoHazardRecords, dashboardToday, scopedEnterpriseIds, scopedEnterprises, session?.role])
 
   const activeScheme = schemeRows.find(item => item.status === '启用') || schemeRows[0]
   const selectedEnterprise = scopedEnterprises.find(item => item.id === selectedEnterpriseId) || scopedEnterprises[0] || enterprises[0]
