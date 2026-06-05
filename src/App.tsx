@@ -113,6 +113,22 @@ type ScoreSnapshot = { id: string; schemeId: string; enterpriseId: string; enter
 type TaskExecutionRecord = { id: string; time: string; actor: string; action: string; note: string }
 type TaskEvidenceFile = { id: string; title: string; category: '现场图片' | '过程记录' | '整改证明'; time: string; description: string }
 type UploadedTaskEvidence = { id: string; title: string; time: string; previewUrl: string; description: string }
+type CaoliaoServiceRecord = {
+  requestId: string
+  receivedAt: string
+  formType: string
+  recognized: boolean
+  serviceType?: string
+  resultSummary?: string
+  recordStatus?: string
+  formName?: string
+  formNumber?: string
+  serialNumber?: string
+  enterpriseName?: string
+  submittedAt?: string
+  executor?: string
+  evidenceFiles?: Array<{ title?: string; url?: string }>
+}
 type PortraitServiceRecord = { id: string; serviceType: string; time: string; executor: string; summary: string; status: string; relatedTaskId: string }
 type PortraitMonthlySnapshot = { month: string; score: number; levelName: string; levelColor: Tone; riskLevel: Risk; closedRate: number; note: string; serviceSummary: string; hazardChange: string; keyActions: string[]; openHazardCount: number; overdueHazardCount: number }
 type TaskCenterItem = {
@@ -277,6 +293,11 @@ const toneMap: Record<Tone, string> = { red: 'badge-red', amber: 'badge-amber', 
 const cn = (...v: Array<string | false | undefined | null>) => v.filter(Boolean).join(' ')
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 const round = (v: number) => Number(v.toFixed(2))
+const formatServiceTime = (value?: string) => {
+  if (!value) return '待补充'
+  const normalized = value.includes('T') ? value.slice(0, 16).replace('T', ' ') : value.slice(0, 16)
+  return normalized || '待补充'
+}
 const daysBetween = (from: string, to: string) => {
   const fromTime = new Date(`${from.slice(0, 10)}T00:00:00`).getTime()
   const toTime = new Date(`${to.slice(0, 10)}T00:00:00`).getTime()
@@ -424,6 +445,9 @@ function App() {
   const [recordTimeFilter, setRecordTimeFilter] = useState('all')
   const [recordStatusFilter, setRecordStatusFilter] = useState('all')
   const [recordQuickFilter, setRecordQuickFilter] = useState('all')
+  const [caoliaoServiceRecords, setCaoliaoServiceRecords] = useState<CaoliaoServiceRecord[]>([])
+  const [caoliaoSyncStatus, setCaoliaoSyncStatus] = useState<'同步中' | '已同步' | '同步失败'>('同步中')
+  const [caoliaoLastSyncAt, setCaoliaoLastSyncAt] = useState('')
   const [insurerAreaFilter, setInsurerAreaFilter] = useState('all')
   const [insurerIndustryFilter, setInsurerIndustryFilter] = useState('all')
   const [insurerTierFilter, setInsurerTierFilter] = useState('all')
@@ -458,6 +482,36 @@ function App() {
     const allowedPages = new Set(roleNavMap[session.role])
     return navItems.filter(item => allowedPages.has(item.key))
   }, [session])
+
+  useEffect(() => {
+    if (!session) return
+    let active = true
+    const loadCaoliaoRecords = async () => {
+      try {
+        setCaoliaoSyncStatus('同步中')
+        const response = await fetch('/api/caoliao/service-records?limit=100', { cache: 'no-store' })
+        if (!response.ok) throw new Error('service records unavailable')
+        const payload = await response.json()
+        if (!active) return
+        setCaoliaoServiceRecords(Array.isArray(payload.items) ? payload.items : [])
+        setCaoliaoSyncStatus('已同步')
+        setCaoliaoLastSyncAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
+      } catch {
+        if (active) setCaoliaoSyncStatus('同步失败')
+      }
+    }
+    loadCaoliaoRecords()
+    const timer = window.setInterval(loadCaoliaoRecords, 15000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [session])
+
+  const scopedCaoliaoServiceRecords = useMemo(() => caoliaoServiceRecords.filter(record => {
+    const enterpriseName = (record.enterpriseName || '').trim()
+    return scopedEnterprises.some(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
+  }), [caoliaoServiceRecords, scopedEnterprises])
 
   const activeScheme = schemeRows.find(item => item.status === '启用') || schemeRows[0]
   const selectedEnterprise = scopedEnterprises.find(item => item.id === selectedEnterpriseId) || scopedEnterprises[0] || enterprises[0]
@@ -768,8 +822,8 @@ function App() {
     { value: 'closedThisMonth', label: '本月闭环' },
   ]
   const snapshotRiskOptions = [{ value: 'all', label: '全部风险等级' }, ...(['高', '中', '低'] as Risk[]).map(item => ({ value: item, label: `${item}风险` }))]
-  const recordTypeOptions = [{ value: 'all', label: '全部服务类型' }, ...Array.from(new Set(taskCenterRows.map(item => item.taskType))).map(item => ({ value: item, label: item }))]
-  const recordExecutorOptions = [{ value: 'all', label: '全部执行人' }, ...Array.from(new Set(taskCenterRows.map(item => item.assignee))).map(item => ({ value: item, label: item }))]
+  const recordTypeOptions = [{ value: 'all', label: '全部服务类型' }, ...Array.from(new Set([...taskCenterRows.map(item => item.taskType), ...scopedCaoliaoServiceRecords.map(item => item.serviceType || '草料服务记录')])).map(item => ({ value: item, label: item }))]
+  const recordExecutorOptions = [{ value: 'all', label: '全部执行人' }, ...Array.from(new Set([...taskCenterRows.map(item => item.assignee), ...scopedCaoliaoServiceRecords.map(item => item.executor || '草料表单提交人')])).map(item => ({ value: item, label: item }))]
   const recordTimeOptions = [
     { value: 'all', label: '全部时间' },
     { value: 'thisMonth', label: '本月' },
@@ -954,7 +1008,7 @@ function App() {
     }
   })
   const serviceLedgerRows = useMemo(() => {
-    return taskCenterRows.map((item, index) => {
+    const taskRows = taskCenterRows.map((item, index) => {
       const uploaded = taskUploadedEvidence[item.taskId] || []
       const evidenceFiles = [
         ...item.evidenceFiles.map(file => ({ id: file.id, title: file.title, time: file.time, previewUrl: '', description: file.description })),
@@ -987,7 +1041,44 @@ function App() {
         missingEvidenceCount: Math.max(0, 4 - evidenceCount),
       }
     })
-  }, [snapshotRows, taskCenterRows, taskUploadedEvidence])
+    const caoliaoRows = scopedCaoliaoServiceRecords.map((record, index) => {
+      const enterpriseName = (record.enterpriseName || '').trim()
+      const matchedEnterprise = scopedEnterprises.find(ent => ent.name === enterpriseName || ent.name.includes(enterpriseName) || enterpriseName.includes(ent.name))
+      if (!matchedEnterprise) return null
+      const evidenceFiles = (record.evidenceFiles || []).map((file, fileIndex) => ({
+        id: `caoliao-${record.requestId || record.serialNumber || index}-${fileIndex}`,
+        title: file.title || `草料现场材料 ${fileIndex + 1}`,
+        time: formatServiceTime(record.submittedAt || record.receivedAt),
+        previewUrl: file.url || '',
+        description: '由草料表单回传的现场材料。',
+      }))
+      const evidenceCount = evidenceFiles.length
+      const relatedSnapshotId = snapshotRows.find(row => row.enterpriseId === matchedEnterprise.id)?.snapshotId || ''
+      const formName = record.formName || '草料服务表单'
+      const formNumber = record.formNumber ? `表单编号 ${record.formNumber}` : '表单编号待补充'
+      return {
+        recordId: record.serialNumber || record.requestId || `CL-202606-${String(index + 1).padStart(3, '0')}`,
+        enterpriseId: matchedEnterprise.id,
+        enterpriseName: matchedEnterprise.name,
+        serviceType: record.serviceType || '草料服务记录',
+        sourceTaskId: '',
+        sourceTaskName: `草料表单：${formName}`,
+        executor: record.executor || '草料表单提交人',
+        executedAt: formatServiceTime(record.submittedAt || record.receivedAt),
+        resultSummary: record.resultSummary || '草料服务记录已回传，待补充执行结论。',
+        evidenceCount,
+        recordStatus: evidenceCount > 0 ? '证据完整' : '待补证据',
+        evidenceFiles,
+        relatedHazardId: '',
+        relatedSnapshotId,
+        remark: `来自草料实时回传，${formNumber}，已归入当前企业服务台账。`,
+        evidenceCompletenessRate: evidenceCount > 0 ? 100 : 50,
+        missingEvidenceCount: evidenceCount > 0 ? 0 : 1,
+      }
+    }).filter((item): item is NonNullable<typeof item> => !!item)
+    return [...caoliaoRows, ...taskRows]
+  }, [scopedCaoliaoServiceRecords, scopedEnterprises, snapshotRows, taskCenterRows, taskUploadedEvidence])
+  const visibleCaoliaoRecordCount = serviceLedgerRows.filter(item => item.sourceTaskName.startsWith('草料表单')).length
   const filteredServiceLedgerRows = serviceLedgerRows.filter(item => {
     const matchesEnterprise = recordEnterpriseFilter === 'all' || item.enterpriseId === recordEnterpriseFilter
     const matchesType = recordTypeFilter === 'all' || item.serviceType === recordTypeFilter
@@ -2278,9 +2369,13 @@ function App() {
               <div className="section-head">
                 <div>
                   <div className="section-title">数据台账 / 服务记录页</div>
-                  <div className="page-subtitle">这里沉淀服务动作、执行结果和证据完整性，帮助团队证明“服务做过、过程可追、结果可交付”。</div>
+                  <div className="page-subtitle">这里沉淀服务动作、执行结果和证据完整性，草料回传记录会自动归入对应企业台账。</div>
                 </div>
-                <Badge tone="cyan">{filteredServiceLedgerRows.length} 条记录</Badge>
+                <div className="inline-row">
+                  <Badge tone={caoliaoSyncStatus === '已同步' ? 'emerald' : caoliaoSyncStatus === '同步失败' ? 'red' : 'amber'}>{caoliaoSyncStatus}{caoliaoLastSyncAt ? ` ${caoliaoLastSyncAt}` : ''}</Badge>
+                  <Badge tone="cyan">草料实时 {visibleCaoliaoRecordCount} 条</Badge>
+                  <Badge tone="cyan">{filteredServiceLedgerRows.length} 条记录</Badge>
+                </div>
               </div>
 
               <div className="grid-4">
@@ -2388,31 +2483,35 @@ function App() {
 
                         <div className="surface-outline">
                           <div className="section-subtitle">图片 / 附件证据</div>
-                          <div className="task-evidence-grid">
-                            {selectedRecord.evidenceFiles.map(item => (
-                              <div key={item.id} className="task-evidence-card">
-                                {item.previewUrl ? <img className="task-evidence-image" src={item.previewUrl} alt={item.title} /> : <div className="task-evidence-preview">服务证据</div>}
-                                <div className="stack-sm">
-                                  <div className="title-sm">{item.title}</div>
-                                  <div className="small muted">{item.time}</div>
-                                  <div className="body">{item.description}</div>
+                          {selectedRecord.evidenceFiles.length ? (
+                            <div className="task-evidence-grid">
+                              {selectedRecord.evidenceFiles.map(item => (
+                                <div key={item.id} className="task-evidence-card">
+                                  {item.previewUrl ? <img className="task-evidence-image" src={item.previewUrl} alt={item.title} /> : <div className="task-evidence-preview">服务证据</div>}
+                                  <div className="stack-sm">
+                                    <div className="title-sm">{item.title}</div>
+                                    <div className="small muted">{item.time}</div>
+                                    <div className="body">{item.description}</div>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="empty-state">当前记录已回传服务结果，现场图片或附件仍待补齐。</div>
+                          )}
                         </div>
 
                         <div className="surface-outline">
                           <div className="section-subtitle">关联关系</div>
                           <div className="todo-list">
-                            <div className="todo-item">关联任务：{selectedRecord.sourceTaskName}</div>
+                            <div className="todo-item">{selectedRecord.sourceTaskId ? '关联任务' : '来源表单'}：{selectedRecord.sourceTaskName}</div>
                             <div className="todo-item">关联隐患：{selectedRecord.relatedHazardId ? '已关联隐患闭环' : '当前未关联隐患'}</div>
                             <div className="todo-item">关联快照：{selectedRecord.relatedSnapshotId ? '已纳入月度快照' : '待纳入月度快照'}</div>
                           </div>
                         </div>
 
                         <div className="button-row">
-                          <button className="btn btn-dark" onClick={() => openHazardSourceTask(selectedRecord.sourceTaskId, selectedRecord.enterpriseId)}>查看任务详情</button>
+                          {selectedRecord.sourceTaskId && <button className="btn btn-dark" onClick={() => openHazardSourceTask(selectedRecord.sourceTaskId, selectedRecord.enterpriseId)}>查看任务详情</button>}
                           <button className="btn btn-light" onClick={() => openSnapshotEnterprise(selectedRecord.enterpriseId, selectedMonth)}>查看企业画像</button>
                           {selectedRecord.relatedHazardId && <button className="btn btn-light" onClick={() => navigateToRoute({ page: 'hazards', enterpriseId: selectedRecord.enterpriseId, hazardEnterpriseId: selectedRecord.enterpriseId, selectedHazardId: selectedRecord.relatedHazardId, hazardListScope: 'all' })}>查看隐患闭环</button>}
                           {selectedRecord.relatedSnapshotId && <button className="btn btn-light" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: selectedRecord.enterpriseId, selectedSnapshotId: selectedRecord.relatedSnapshotId })}>查看月度快照</button>}
