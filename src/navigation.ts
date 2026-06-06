@@ -69,6 +69,19 @@ const workspacePathMap: Record<Exclude<RoutePage, 'login' | 'dashboard' | 'tasks
 }
 
 const workspaceSlugMap = Object.fromEntries(Object.entries(workspacePathMap).map(([page, path]) => [path.replace('/workspace/', ''), page as RoutePage]))
+const platformPrefix = '/platform'
+
+const withPlatformPrefix = (pathname: string) => {
+  if (pathname === '/') return `${platformPrefix}/dashboard`
+  if (pathname === platformPrefix || pathname.startsWith(`${platformPrefix}/`)) return pathname
+  return `${platformPrefix}${pathname}`
+}
+
+const stripPlatformPrefix = (pathname: string) => {
+  if (pathname === platformPrefix || pathname === `${platformPrefix}/`) return '/'
+  if (pathname.startsWith(`${platformPrefix}/`)) return pathname.slice(platformPrefix.length)
+  return pathname
+}
 
 const addParam = (params: URLSearchParams, key: string, value?: string) => {
   if (value && value !== 'all') params.set(key, value)
@@ -157,8 +170,9 @@ export const buildAppHref = (route: NavigationState): string => {
     addParam(params, 'month', route.selectedMonth)
   }
 
+  const platformPathname = withPlatformPrefix(pathname)
   const query = params.toString()
-  return query ? `${pathname}?${query}` : pathname
+  return query ? `${platformPathname}?${query}` : platformPathname
 }
 
 const parseLegacyState = (params: URLSearchParams): NavigationState | null => {
@@ -211,10 +225,11 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
   const params = new URLSearchParams(search)
   const legacyState = parseLegacyState(params)
   if (legacyState) return legacyState
+  const normalizedPathname = stripPlatformPrefix(pathname)
 
-  if (pathname === '/login') return { page: 'login' }
-  if (pathname === '/' || pathname === '/dashboard') return { page: 'dashboard' }
-  if (pathname === '/tasks') {
+  if (normalizedPathname === '/login') return { page: 'login' }
+  if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return { page: 'dashboard' }
+  if (normalizedPathname === '/tasks') {
     return {
       page: 'tasks',
       taskId: params.get('taskId') || undefined,
@@ -228,9 +243,9 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       taskQuickFilter: (params.get('quick') as RouteTaskQuickFilter | null) || undefined,
     }
   }
-  if (pathname === '/enterprises') return { page: 'enterprises' }
-  if (pathname.startsWith('/enterprises/')) {
-    const enterpriseId = pathname.replace('/enterprises/', '')
+  if (normalizedPathname === '/enterprises') return { page: 'enterprises' }
+  if (normalizedPathname.startsWith('/enterprises/')) {
+    const enterpriseId = normalizedPathname.replace('/enterprises/', '')
     return {
       page: 'detail',
       enterpriseId: enterpriseId || undefined,
@@ -238,7 +253,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       detailSnapshotMonth: params.get('snapshot') || undefined,
     }
   }
-  if (pathname === '/hazards') {
+  if (normalizedPathname === '/hazards') {
     return {
       page: 'hazards',
       enterpriseId: params.get('enterpriseId') || undefined,
@@ -254,7 +269,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       hazardQuickFilter: params.get('quick') || undefined,
     }
   }
-  if (pathname === '/snapshots' || pathname === '/workspace/score-detail') {
+  if (normalizedPathname === '/snapshots' || normalizedPathname === '/workspace/score-detail') {
     return {
       page: 'scoreDetail',
       selectedMonth: params.get('month') || undefined,
@@ -263,7 +278,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       selectedSnapshotId: params.get('snapshotId') || undefined,
     }
   }
-  if (pathname === '/records' || pathname === '/workspace/devices') {
+  if (normalizedPathname === '/records' || normalizedPathname === '/workspace/devices') {
     return {
       page: 'devices',
       selectedRecordId: params.get('recordId') || undefined,
@@ -276,14 +291,14 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       selectedMonth: params.get('month') || undefined,
     }
   }
-  if (pathname === '/enterprise-home' || pathname === '/workspace/users') {
+  if (normalizedPathname === '/enterprise-home' || normalizedPathname === '/workspace/users') {
     return {
       page: 'users',
       enterpriseId: params.get('enterpriseId') || undefined,
       selectedMonth: params.get('month') || undefined,
     }
   }
-  if (pathname === '/insurer' || pathname === '/workspace/score-trend') {
+  if (normalizedPathname === '/insurer' || normalizedPathname === '/workspace/score-trend') {
     return {
       page: 'scoreTrend',
       selectedMonth: params.get('month') || undefined,
@@ -292,7 +307,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       insurerTierFilter: params.get('tier') || undefined,
     }
   }
-  if (pathname === '/regulator' || pathname === '/workspace/bigscreen') {
+  if (normalizedPathname === '/regulator' || normalizedPathname === '/workspace/bigscreen') {
     return {
       page: 'bigscreen',
       selectedMonth: params.get('month') || undefined,
@@ -301,8 +316,8 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
       regulatorStatusFilter: params.get('status') || undefined,
     }
   }
-  if (pathname.startsWith('/workspace/')) {
-    const slug = pathname.replace('/workspace/', '')
+  if (normalizedPathname.startsWith('/workspace/')) {
+    const slug = normalizedPathname.replace('/workspace/', '')
     const page = workspaceSlugMap[slug] || 'dashboard'
     return {
       page,

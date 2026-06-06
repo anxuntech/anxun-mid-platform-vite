@@ -297,7 +297,7 @@ const initialLevelRanges: ScoreLevelRange[] = [
 ]
 
 const navItems = [
-  { key: 'dashboard' as PageKey, label: '总览首页', icon: Gauge },
+  { key: 'dashboard' as PageKey, label: '风险服务驾驶舱', icon: Gauge },
   { key: 'users' as PageKey, label: '企业首页', icon: Briefcase },
   { key: 'scoreTrend' as PageKey, label: '保险风控', icon: LineChart },
   { key: 'bigscreen' as PageKey, label: '应急监管', icon: Monitor },
@@ -554,10 +554,10 @@ function App() {
       return {
         id: record.serialNumber || record.requestId || `caoliao-hazard-${index + 1}`,
         enterpriseId,
-        title: record.hazardName || record.hazardDescription || record.summary || record.formName || '草料隐患上报',
+        title: record.hazardName || record.hazardDescription || record.summary || record.formName || '现场隐患上报',
         level,
         status: '待整改' as HazardStatus,
-        source: record.formName ? `草料表单：${record.formName}` : '草料隐患上报',
+        source: record.formName ? `现场表单：${record.formName}` : '现场隐患上报',
         foundAt: formatServiceTime(record.submittedAt || record.receivedAt),
         deadline: record.rectificationDeadline || dashboardToday,
       }
@@ -874,8 +874,8 @@ function App() {
     { value: 'closedThisMonth', label: '本月闭环' },
   ]
   const snapshotRiskOptions = [{ value: 'all', label: '全部风险等级' }, ...(['高', '中', '低'] as Risk[]).map(item => ({ value: item, label: `${item}风险` }))]
-  const recordTypeOptions = [{ value: 'all', label: '全部服务类型' }, ...Array.from(new Set([...taskCenterRows.map(item => item.taskType), ...scopedCaoliaoServiceRecords.map(item => item.serviceType || '草料服务记录')])).map(item => ({ value: item, label: item }))]
-  const recordExecutorOptions = [{ value: 'all', label: '全部执行人' }, ...Array.from(new Set([...taskCenterRows.map(item => item.assignee), ...scopedCaoliaoServiceRecords.map(item => item.executor || '草料表单提交人')])).map(item => ({ value: item, label: item }))]
+  const recordTypeOptions = [{ value: 'all', label: '全部服务类型' }, ...Array.from(new Set([...taskCenterRows.map(item => item.taskType), ...scopedCaoliaoServiceRecords.map(item => item.serviceType || '现场服务记录')])).map(item => ({ value: item, label: item }))]
+  const recordExecutorOptions = [{ value: 'all', label: '全部执行人' }, ...Array.from(new Set([...taskCenterRows.map(item => item.assignee), ...scopedCaoliaoServiceRecords.map(item => item.executor || '现场表单提交人')])).map(item => ({ value: item, label: item }))]
   const recordTimeOptions = [
     { value: 'all', label: '全部时间' },
     { value: 'thisMonth', label: '本月' },
@@ -1099,39 +1099,39 @@ function App() {
       if (!matchedEnterprise && session?.role !== 'admin') return null
       const evidenceFiles = (record.evidenceFiles || []).map((file, fileIndex) => ({
         id: `caoliao-${record.requestId || record.serialNumber || index}-${fileIndex}`,
-        title: file.title || `草料现场材料 ${fileIndex + 1}`,
+        title: file.title || `现场材料 ${fileIndex + 1}`,
         time: formatServiceTime(record.submittedAt || record.receivedAt),
         previewUrl: file.url || '',
-        description: '由草料表单回传的现场材料。',
+        description: '由现场表单回传的材料。',
       }))
       const evidenceCount = evidenceFiles.length
       const enterpriseId = matchedEnterprise?.id || buildCaoliaoEnterpriseId(enterpriseName || '未识别企业', record.requestId)
       const relatedSnapshotId = matchedEnterprise ? snapshotRows.find(row => row.enterpriseId === matchedEnterprise.id)?.snapshotId || '' : ''
-      const formName = record.formName || '草料服务表单'
+      const formName = record.formName || '现场服务表单'
       const formNumber = record.formNumber ? `表单编号 ${record.formNumber}` : '表单编号待补充'
       return {
         recordId: record.serialNumber || record.requestId || `CL-202606-${String(index + 1).padStart(3, '0')}`,
         enterpriseId,
         enterpriseName: matchedEnterprise?.name || enterpriseName || '未识别企业',
-        serviceType: record.serviceType || '草料服务记录',
+        serviceType: record.serviceType || '现场服务记录',
         sourceTaskId: '',
-        sourceTaskName: `草料表单：${formName}`,
-        executor: record.executor || '草料表单提交人',
+        sourceTaskName: `现场表单：${formName}`,
+        executor: record.executor || '现场表单提交人',
         executedAt: formatServiceTime(record.submittedAt || record.receivedAt),
-        resultSummary: record.resultSummary || '草料服务记录已回传，待补充执行结论。',
+        resultSummary: record.resultSummary || '现场服务记录已回传，待补充执行结论。',
         evidenceCount,
         recordStatus: evidenceCount > 0 ? '证据完整' : '待补证据',
         evidenceFiles,
         relatedHazardId: '',
         relatedSnapshotId,
-        remark: `来自草料实时回传，${formNumber}，已归入当前企业服务台账。`,
+        remark: `来自现场表单实时回传，${formNumber}，已归入当前企业服务台账。`,
         evidenceCompletenessRate: evidenceCount > 0 ? 100 : 50,
         missingEvidenceCount: evidenceCount > 0 ? 0 : 1,
       }
     }).filter((item): item is NonNullable<typeof item> => !!item)
     return [...caoliaoRows, ...taskRows]
   }, [scopedCaoliaoServiceRecords, scopedEnterprises, session?.role, snapshotRows, taskCenterRows, taskUploadedEvidence])
-  const visibleCaoliaoRecordCount = serviceLedgerRows.filter(item => item.sourceTaskName.startsWith('草料表单')).length
+  const visibleCaoliaoRecordCount = serviceLedgerRows.filter(item => item.sourceTaskName.startsWith('现场表单')).length
   const filteredServiceLedgerRows = serviceLedgerRows.filter(item => {
     const matchesEnterprise = recordEnterpriseFilter === 'all' || item.enterpriseId === recordEnterpriseFilter
     const matchesType = recordTypeFilter === 'all' || item.serviceType === recordTypeFilter
@@ -1857,7 +1857,7 @@ function App() {
         <div className="content-wrap">
           {message && <div className="notice">{message}</div>}
 
-          {page === 'dashboard' && <div className="stack-lg"><div className="hero-banner"><div><div className="hero-title">{currentRole === 'admin' ? '总览首页' : '服务商首页'}</div><div className="hero-desc">{currentRole === 'admin' ? '当前展示平台全局视角，可统筹查看企业覆盖、任务推进、风险提醒和月度交付结果。' : '今天先处理到期任务和待复查隐患，再关注高风险企业的闭环压力；下方工作台同时给出行动入口、风险提醒和月度交付结果。'}</div></div><PerspectiveBadge value={currentRole === 'admin' ? '保险平台' : '安全服务商'} /></div><div className="overview-grid">{overviewCards.map(item => { const Icon = item.icon; return <button key={item.key} className="overview-card" onClick={item.action}><div className="overview-card-head"><div><div className="overview-card-title">{item.title}</div><div className="overview-card-value">{item.value}</div></div><div className="overview-card-icon"><Icon className="icon-md" /></div></div><div className="overview-card-desc">{item.desc}</div></button> })}</div><div className="dashboard-main-grid"><Card title="今日待办任务" extra={<div className="inline-row"><Badge tone="amber">{filteredTodayTaskRows.length} 项待处理</Badge><button className="btn btn-xs btn-light" onClick={() => openTaskCenter('today', filteredTodayTaskRows[0]?.id, true)}>查看全部</button></div>}><div className="dashboard-filter-row"><Select value={dashboardEnterpriseFilter} onChange={setDashboardEnterpriseFilter} options={enterpriseFilterOptions} /><Select value={dashboardStatusFilter} onChange={setDashboardStatusFilter} options={taskStatusOptions} /><Select value={dashboardPriorityFilter} onChange={value => setDashboardPriorityFilter(value as 'all' | TaskPriority)} options={priorityOptions} /></div><div className="spacer-sm" />{filteredTodayTaskRows.length ? <Table className="task-table" columns={['任务名称', '企业名称', '任务类型', '截止时间', '当前状态', '优先级', '操作']} rows={filteredTodayTaskRows} renderRow={item => <tr key={item.id} className="clickable-row" onClick={() => openTaskCenter('today', item.id, true)}><td className="cell strong wrap-cell">{item.taskName}</td><td className="wrap-cell">{item.enterpriseName}</td><td>{item.taskType}</td><td>{item.dueDate}</td><td><StatusBadge value={item.taskStatus} /></td><td><PriorityBadge value={item.priority} /></td><td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openTaskCenter('today', item.id, true) }}>查看详情</button></td></tr>} /> : <div className="empty-state">当前筛选条件下没有待办任务。</div>}</Card><Card title="风险提醒" extra={<Badge tone="red">优先跟进高风险企业</Badge>}><div className="risk-list">{riskRows.map(item => <button key={item.enterpriseId} className="risk-item" onClick={() => openEnterpriseDetail(item.enterpriseId, true)}><div className="risk-item-head"><div><div className="title-sm">{item.enterpriseName}</div><div className="small muted">最近一次服务时间：{item.lastServiceDate}</div></div><RiskBadge level={item.riskLevel} /></div><div className="risk-item-grid"><div className="surface-box"><div className="muted">未闭环隐患数</div><div className="title-sm">{item.openHazardCount}</div></div><div className="surface-box"><div className="muted">超期项数</div><div className="title-sm">{item.overdueCount}</div></div></div></button>)}</div></Card></div><Card title="月度交付概览" extra={<Badge tone="cyan">截至 {dashboardMonth}</Badge>}><div className="delivery-grid"><div className="mini-card"><div className="muted">已完成任务数</div><div className="title-sm">{monthlyCompletedTaskCount} 项</div></div><div className="mini-card"><div className="muted">闭环隐患数</div><div className="title-sm">{monthlyClosedHazardCount} 项</div></div><div className="mini-card"><div className="muted">本月新增隐患数</div><div className="title-sm">{monthlyNewHazardCount} 项</div></div><div className="mini-card"><div className="muted">企业覆盖率</div><div className="title-sm">{enterpriseCoverageRate}%</div></div><div className="mini-card"><div className="muted">月度快照已生成企业数</div><div className="title-sm">{monthlySnapshotEnterpriseCount} 家</div></div></div></Card></div>}
+          {page === 'dashboard' && <div className="stack-lg"><div className="hero-banner"><div><div className="hero-title">{currentRole === 'admin' ? '平台风险总览' : '风险服务驾驶舱'}</div><div className="hero-desc">{currentRole === 'admin' ? '当前展示平台全局视角，可统筹查看企业覆盖、任务推进、风险提醒和月度交付结果。' : '今天先处理到期任务和待复查隐患，再关注高风险企业的闭环压力；下方工作台同时给出行动入口、风险提醒和月度交付结果。'}</div></div><PerspectiveBadge value={currentRole === 'admin' ? '保险平台' : '安全服务商'} /></div><div className="overview-grid">{overviewCards.map(item => { const Icon = item.icon; return <button key={item.key} className="overview-card" onClick={item.action}><div className="overview-card-head"><div><div className="overview-card-title">{item.title}</div><div className="overview-card-value">{item.value}</div></div><div className="overview-card-icon"><Icon className="icon-md" /></div></div><div className="overview-card-desc">{item.desc}</div></button> })}</div><div className="dashboard-main-grid"><Card title="今日待办任务" extra={<div className="inline-row"><Badge tone="amber">{filteredTodayTaskRows.length} 项待处理</Badge><button className="btn btn-xs btn-light" onClick={() => openTaskCenter('today', filteredTodayTaskRows[0]?.id, true)}>查看全部</button></div>}><div className="dashboard-filter-row"><Select value={dashboardEnterpriseFilter} onChange={setDashboardEnterpriseFilter} options={enterpriseFilterOptions} /><Select value={dashboardStatusFilter} onChange={setDashboardStatusFilter} options={taskStatusOptions} /><Select value={dashboardPriorityFilter} onChange={value => setDashboardPriorityFilter(value as 'all' | TaskPriority)} options={priorityOptions} /></div><div className="spacer-sm" />{filteredTodayTaskRows.length ? <Table className="task-table" columns={['任务名称', '企业名称', '任务类型', '截止时间', '当前状态', '优先级', '操作']} rows={filteredTodayTaskRows} renderRow={item => <tr key={item.id} className="clickable-row" onClick={() => openTaskCenter('today', item.id, true)}><td className="cell strong wrap-cell">{item.taskName}</td><td className="wrap-cell">{item.enterpriseName}</td><td>{item.taskType}</td><td>{item.dueDate}</td><td><StatusBadge value={item.taskStatus} /></td><td><PriorityBadge value={item.priority} /></td><td><button className="btn btn-xs btn-dark" onClick={event => { event.stopPropagation(); openTaskCenter('today', item.id, true) }}>查看详情</button></td></tr>} /> : <div className="empty-state">当前筛选条件下没有待办任务。可切换企业、状态或优先级，也可以进入任务中心查看全部任务。</div>}</Card><Card title="风险提醒" extra={<Badge tone="red">优先跟进高风险企业</Badge>}><div className="risk-list">{riskRows.map(item => <button key={item.enterpriseId} className="risk-item" onClick={() => openEnterpriseDetail(item.enterpriseId, true)}><div className="risk-item-head"><div><div className="title-sm">{item.enterpriseName}</div><div className="small muted">最近一次服务时间：{item.lastServiceDate}</div></div><RiskBadge level={item.riskLevel} /></div><div className="risk-item-grid"><div className="surface-box"><div className="muted">未闭环隐患数</div><div className="title-sm">{item.openHazardCount}</div></div><div className="surface-box"><div className="muted">超期项数</div><div className="title-sm">{item.overdueCount}</div></div></div></button>)}</div></Card></div><Card title="月度交付概览" extra={<Badge tone="cyan">截至 {dashboardMonth}</Badge>}><div className="delivery-grid"><div className="mini-card"><div className="muted">已完成任务数</div><div className="title-sm">{monthlyCompletedTaskCount} 项</div></div><div className="mini-card"><div className="muted">闭环隐患数</div><div className="title-sm">{monthlyClosedHazardCount} 项</div></div><div className="mini-card"><div className="muted">本月新增隐患数</div><div className="title-sm">{monthlyNewHazardCount} 项</div></div><div className="mini-card"><div className="muted">企业覆盖率</div><div className="title-sm">{enterpriseCoverageRate}%</div></div><div className="mini-card"><div className="muted">月度快照已生成企业数</div><div className="title-sm">{monthlySnapshotEnterpriseCount} 家</div></div></div></Card></div>}
 
           {page === 'enterprises' && <Card title={`${perspective}企业列表`} extra={<div className="search-wrap"><Search className="search-icon" /><input className="search-input" value={selectedEnterprise.name} readOnly /></div>}><Table columns={['企业名称', '行业', '区域', '试用版得分', '等级', '高风险隐患', '操作']} rows={scopedEnterprises} renderRow={(item: Enterprise) => <tr key={item.id}><td className="cell strong wrap-cell">{item.name}</td><td>{item.industry}</td><td>{item.area}</td><td>{latestMap[item.id].totalScore}</td><td><Badge tone={latestMap[item.id].levelColor}>{latestMap[item.id].levelName}</Badge></td><td>{scopedHazards.filter(h => h.enterpriseId === item.id && h.level === '高' && h.status !== '已闭环').length}</td><td><div className="button-row"><button className="btn btn-xs btn-light" onClick={() => openEnterpriseDetail(item.id)}>详情</button><button className="btn btn-xs btn-dark" onClick={() => navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter: item.id })}>快照</button></div></td></tr>} /></Card>}
 
@@ -2037,7 +2037,7 @@ function App() {
             <div className="stack-lg">
               <div className="section-head">
                 <div>
-                  <div className="section-title">月度快照页</div>
+                  <div className="section-title">月度快照</div>
                   <div className="page-subtitle">先看本月结果，再看趋势变化，再回看主要风险项和服务结论，形成对企业、服务和保险都能解释得通的月度输出。</div>
                 </div>
                 <div className="button-row">
@@ -2099,7 +2099,7 @@ function App() {
                         )}
                       />
                     ) : (
-                      <div className="empty-state">当前筛选条件下没有月度快照，请调整月份或企业范围。</div>
+                      <div className="empty-state">当前筛选条件下没有月度快照。可切换月份或企业范围，也可以先查看任务中心和隐患闭环补齐本月服务结果。</div>
                     )}
                   </Card>
 
@@ -2340,7 +2340,7 @@ function App() {
             <div className="stack-lg">
               <div className="section-head">
                 <div>
-                  <div className="section-title">{hazardListScope === 'pendingReview' ? '待复查隐患闭环页' : hazardListScope === 'overdueOpen' ? '超期隐患闭环页' : '隐患闭环页'}</div>
+                  <div className="section-title">{hazardListScope === 'pendingReview' ? '待复查隐患闭环' : hazardListScope === 'overdueOpen' ? '超期隐患闭环' : '隐患闭环'}</div>
                   <div className="page-subtitle">这里把隐患从发现、整改、复查到归档的过程串成一条闭环链，方便服务商、企业和保险侧对同一问题形成一致判断。</div>
                 </div>
                 <div className="inline-row">
@@ -2412,7 +2412,7 @@ function App() {
                     )}
                   />
                 ) : (
-                  <div className="empty-state">当前筛选条件下没有隐患项，请调整筛选后重试。</div>
+                  <div className="empty-state">当前筛选条件下没有隐患项。可切换企业、等级或整改状态，也可以回到任务中心查看来源任务。</div>
                 )}
               </Card>
             </div>
@@ -2422,12 +2422,12 @@ function App() {
             <div className="stack-lg">
               <div className="section-head">
                 <div>
-                  <div className="section-title">数据台账 / 服务记录页</div>
-                  <div className="page-subtitle">这里沉淀服务动作、执行结果和证据完整性，草料回传记录会自动归入对应企业台账。</div>
+                  <div className="section-title">数据台账 / 服务记录</div>
+                  <div className="page-subtitle">这里沉淀服务动作、执行结果和证据完整性，现场表单记录会自动归入对应企业台账。</div>
                 </div>
                 <div className="inline-row">
                   <Badge tone={caoliaoSyncStatus === '已同步' ? 'emerald' : caoliaoSyncStatus === '同步失败' ? 'red' : 'amber'}>{caoliaoSyncStatus}{caoliaoLastSyncAt ? ` ${caoliaoLastSyncAt}` : ''}</Badge>
-                  <Badge tone="cyan">草料实时 {visibleCaoliaoRecordCount} 条</Badge>
+                  <Badge tone="cyan">实时记录 {visibleCaoliaoRecordCount} 条</Badge>
                   <Badge tone="cyan">{filteredServiceLedgerRows.length} 条记录</Badge>
                 </div>
               </div>
@@ -2485,7 +2485,7 @@ function App() {
                         )}
                       />
                     ) : (
-                      <div className="empty-state">当前筛选条件下没有服务记录，请调整筛选后重试。</div>
+                      <div className="empty-state">当前筛选条件下没有服务记录。可切换企业、服务类型或时间范围，也可以等待现场点检记录回传。</div>
                     )}
                   </Card>
 
@@ -2671,7 +2671,7 @@ function App() {
                     )}
                   />
                 ) : (
-                  <div className="empty-state">当前筛选条件下没有任务，请调整筛选后重试。</div>
+                  <div className="empty-state">当前筛选条件下没有任务。可切换企业、任务状态或快捷筛选，必要时回到风险服务驾驶舱查看今日重点。</div>
                 )}
               </Card>
             </div>
