@@ -421,14 +421,17 @@ const PriorityBadge = ({ value }: { value: TaskPriority }) => <Badge tone={value
 const TaskStatusBadge = ({ value }: { value: UnifiedTaskStatus }) => <Badge tone={taskStatusTone[value]}>{value}</Badge>
 
 function MarketingSite() {
-  const servicePillars = [
-    { title: '现场动作数字化', text: '把巡检、点检、培训、作业审批等动作沉淀为可查看的过程记录。' },
-    { title: '隐患整改闭环化', text: '从发现、派发、整改、复查到归档形成一条完整闭环链。' },
-    { title: '服务过程可留痕', text: '服务机构的到场、执行、证据和结论可复盘、可交付。' },
-    { title: '风险数据可复盘', text: '以企业画像、月度快照和数据台账支撑管理复盘。' },
+  const servicePillars = ['工具承载现场动作', '服务推动持续执行', '数据形成过程证据', '报告沉淀交付成果']
+  const capabilities = [
+    { title: '巡检点检', text: '让日常检查从纸面记录变成可追踪的现场动作。' },
+    { title: '隐患上报', text: '现场发现的问题能及时上报、定位、分派。' },
+    { title: '整改闭环', text: '整改、复查、归档形成连续闭环，不停在通知层。' },
+    { title: '作业票管理', text: '把高风险作业审批和执行留痕纳入统一管理。' },
+    { title: '安全培训', text: '记录培训过程和参与情况，沉淀企业安全能力。' },
+    { title: '数据报告', text: '按月输出服务成果、风险变化和管理建议。' },
   ]
-  const capabilities = ['巡检点检', '隐患上报', '整改闭环', '作业票管理', '安全培训', '安全档案', '数据报告', '物联拓展']
-  const scenarios = ['工贸企业', '纺织 / 机械 / 仓储场景', '消防设施点检', '机械设备点检', '安全服务机构交付', '保险风险减量服务']
+  const scenarios = ['工贸企业现场管理', '消防设施点检', '机械设备巡检', '保险风险减量服务', '安全服务机构交付']
+  const flowItems = ['服务记录', '隐患闭环', '风险画像', '月度报告', '续保支撑']
 
   return (
     <main className="site-shell">
@@ -449,7 +452,7 @@ function MarketingSite() {
 
       <section id="home" className="site-hero">
         <div className="site-hero-copy">
-          <div className="site-kicker">企业现场安全管理服务体系</div>
+          <div className="site-kicker">ANXUN SAFETY SERVICE</div>
           <h1>安巡企业现场安全管理服务体系</h1>
           <p>
             把巡检点检、隐患整改、作业审批、安全培训和数据报告，沉淀为可追踪、可复盘、可交付的安全管理成果。
@@ -461,18 +464,19 @@ function MarketingSite() {
           </div>
         </div>
         <div className="site-visual" aria-hidden="true">
-          <div className="site-grid-orbit">
-            {Array.from({ length: 30 }).map((_, index) => <span key={index} />)}
+          <div className="site-visual-grid">
+            {Array.from({ length: 48 }).map((_, index) => <span key={index} className={index % 7 === 0 ? 'site-node-active' : ''} />)}
           </div>
-          <div className="site-dashboard-card site-dashboard-main">
-            <div className="site-card-label">风险服务进度</div>
-            <div className="site-card-number">86%</div>
-            <div className="site-progress-line"><span /></div>
+          <div className="site-data-panel">
+            <div className="site-panel-head">
+              <span>现场数据流</span>
+              <span>运行中</span>
+            </div>
+            <div className="site-panel-title">巡检 · 整改 · 复查 · 报告</div>
+            <div className="site-flow-lines"><i /><i /><i /></div>
           </div>
-          <div className="site-dashboard-card site-dashboard-side">
-            <div className="site-card-label">隐患闭环</div>
-            <div className="site-dot-row"><span /><span /><span /><span /></div>
-            <div className="site-card-note">发现 · 整改 · 复查 · 归档</div>
+          <div className="site-loop-panel">
+            {['发现', '整改', '复查', '归档'].map(item => <span key={item}>{item}</span>)}
           </div>
         </div>
       </section>
@@ -480,20 +484,19 @@ function MarketingSite() {
       <section id="service" className="site-section site-split">
         <div>
           <div className="site-kicker">SERVICE SYSTEM</div>
-          <h2>不是单一软件，而是工具 + 服务 + 数据 + 报告。</h2>
+          <h2>不是单一软件，而是一套现场安全管理服务体系</h2>
         </div>
         <p>
-          安巡围绕企业现场安全管理的真实动作组织服务，把点位、表单、整改、复查和月度输出串起来，让企业、服务机构和保险侧看到同一套过程证据。
+          以工具承接企业现场动作，以服务推动持续执行，以数据沉淀过程证据，以报告形成可交付成果。
         </p>
       </section>
 
-      <section className="site-pillar-grid">
-        {servicePillars.map(item => (
-          <article className="site-pillar" key={item.title}>
-            <div className="site-pillar-line" />
-            <h3>{item.title}</h3>
-            <p>{item.text}</p>
-          </article>
+      <section className="site-pillar-lineup">
+        {servicePillars.map((item, index) => (
+          <div className="site-pillar-step" key={item}>
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <strong>{item}</strong>
+          </div>
         ))}
       </section>
 
@@ -501,15 +504,16 @@ function MarketingSite() {
         <div className="site-section-head">
           <div>
             <div className="site-kicker">CAPABILITY</div>
-            <h2>覆盖从现场执行到管理复盘的关键能力。</h2>
+            <h2>核心能力</h2>
           </div>
-          <p>以轻量工具承接现场动作，以服务记录和数据报告形成可交付成果。</p>
+          <p>少一点表格堆叠，多一点能真正落地的现场管理动作。</p>
         </div>
         <div className="site-capability-grid">
           {capabilities.map((item, index) => (
-            <div className="site-capability" key={item}>
+            <div className="site-capability" key={item.title}>
               <span>{String(index + 1).padStart(2, '0')}</span>
-              <strong>{item}</strong>
+              <strong>{item.title}</strong>
+              <p>{item.text}</p>
             </div>
           ))}
         </div>
@@ -519,7 +523,7 @@ function MarketingSite() {
         <div className="site-section-head">
           <div>
             <div className="site-kicker">SCENARIOS</div>
-            <h2>面向高频、真实、需要留痕的现场安全场景。</h2>
+            <h2>应用场景</h2>
           </div>
         </div>
         <div className="site-scenario-list">
@@ -529,20 +533,19 @@ function MarketingSite() {
 
       <section id="insurance" className="site-insurance">
         <div className="site-kicker">INSURANCE COLLABORATION</div>
-        <h2>为保险机构提供风险减量服务抓手。</h2>
+        <h2>为保险风险减量提供可留痕、可复盘、可汇报的服务抓手</h2>
         <p>
-          通过服务记录、隐患闭环、风险画像、月度快照和客户经营证据，帮助保险侧看清企业安全管理变化，为续保支持、复核建议和客户经营提供过程依据。
+          通过服务记录、隐患闭环、风险画像、月度报告和续保支撑，帮助保险侧看清企业安全管理变化。
         </p>
         <div className="site-flow">
-          {['服务记录', '隐患闭环', '风险画像', '续保支撑', '客户经营证据'].map(item => <span key={item}>{item}</span>)}
+          {flowItems.map(item => <span key={item}>{item}</span>)}
         </div>
       </section>
 
       <section id="contact" className="site-contact">
         <div>
           <div className="site-kicker">CONTACT</div>
-          <h2>让现场安全管理从“做过”变成“可证明”。</h2>
-          <p>如果你正在建设企业安全管理体系、服务交付体系或保险风险减量服务，欢迎联系安巡团队。</p>
+          <h2>让安全管理从纸面记录，变成持续运行的数据闭环。</h2>
         </div>
         <div className="site-contact-actions">
           <a className="site-btn site-btn-dark" href="/platform/">进入安全服务平台</a>
