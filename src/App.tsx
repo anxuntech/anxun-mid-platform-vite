@@ -420,9 +420,145 @@ const PerspectiveBadge = ({ value }: { value: Perspective }) => <Badge tone={val
 const PriorityBadge = ({ value }: { value: TaskPriority }) => <Badge tone={value === '高' ? 'red' : value === '中' ? 'amber' : 'blue'}>{value}优先</Badge>
 const TaskStatusBadge = ({ value }: { value: UnifiedTaskStatus }) => <Badge tone={taskStatusTone[value]}>{value}</Badge>
 
+function MarketingSite() {
+  const servicePillars = [
+    { title: '现场动作数字化', text: '把巡检、点检、培训、作业审批等动作沉淀为可查看的过程记录。' },
+    { title: '隐患整改闭环化', text: '从发现、派发、整改、复查到归档形成一条完整闭环链。' },
+    { title: '服务过程可留痕', text: '服务机构的到场、执行、证据和结论可复盘、可交付。' },
+    { title: '风险数据可复盘', text: '以企业画像、月度快照和数据台账支撑管理复盘。' },
+  ]
+  const capabilities = ['巡检点检', '隐患上报', '整改闭环', '作业票管理', '安全培训', '安全档案', '数据报告', '物联拓展']
+  const scenarios = ['工贸企业', '纺织 / 机械 / 仓储场景', '消防设施点检', '机械设备点检', '安全服务机构交付', '保险风险减量服务']
+
+  return (
+    <main className="site-shell">
+      <nav className="site-nav">
+        <a className="site-brand" href="/">
+          <span className="site-brand-mark">安</span>
+          <span>北京安巡数智科技有限公司</span>
+        </a>
+        <div className="site-nav-links">
+          <a href="#home">首页</a>
+          <a href="#service">服务体系</a>
+          <a href="#capability">功能能力</a>
+          <a href="#scenario">应用场景</a>
+          <a href="#insurance">保险协同</a>
+          <a href="#contact">联系我们</a>
+          <a className="site-nav-cta" href="/platform/">进入平台</a>
+        </div>
+      </nav>
+
+      <section id="home" className="site-hero">
+        <div className="site-hero-copy">
+          <div className="site-kicker">企业现场安全管理服务体系</div>
+          <h1>安巡企业现场安全管理服务体系</h1>
+          <p>
+            把巡检点检、隐患整改、作业审批、安全培训和数据报告，沉淀为可追踪、可复盘、可交付的安全管理成果。
+          </p>
+          <div className="site-hero-actions">
+            <a className="site-btn site-btn-dark" href="#service">查看服务体系</a>
+            <a className="site-btn site-btn-blue" href="/platform/">进入安全服务平台</a>
+            <a className="site-btn site-btn-ghost" href="/self-deploy-ai-assessment">企业安全自测</a>
+          </div>
+        </div>
+        <div className="site-visual" aria-hidden="true">
+          <div className="site-grid-orbit">
+            {Array.from({ length: 30 }).map((_, index) => <span key={index} />)}
+          </div>
+          <div className="site-dashboard-card site-dashboard-main">
+            <div className="site-card-label">风险服务进度</div>
+            <div className="site-card-number">86%</div>
+            <div className="site-progress-line"><span /></div>
+          </div>
+          <div className="site-dashboard-card site-dashboard-side">
+            <div className="site-card-label">隐患闭环</div>
+            <div className="site-dot-row"><span /><span /><span /><span /></div>
+            <div className="site-card-note">发现 · 整改 · 复查 · 归档</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="service" className="site-section site-split">
+        <div>
+          <div className="site-kicker">SERVICE SYSTEM</div>
+          <h2>不是单一软件，而是工具 + 服务 + 数据 + 报告。</h2>
+        </div>
+        <p>
+          安巡围绕企业现场安全管理的真实动作组织服务，把点位、表单、整改、复查和月度输出串起来，让企业、服务机构和保险侧看到同一套过程证据。
+        </p>
+      </section>
+
+      <section className="site-pillar-grid">
+        {servicePillars.map(item => (
+          <article className="site-pillar" key={item.title}>
+            <div className="site-pillar-line" />
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </section>
+
+      <section id="capability" className="site-section">
+        <div className="site-section-head">
+          <div>
+            <div className="site-kicker">CAPABILITY</div>
+            <h2>覆盖从现场执行到管理复盘的关键能力。</h2>
+          </div>
+          <p>以轻量工具承接现场动作，以服务记录和数据报告形成可交付成果。</p>
+        </div>
+        <div className="site-capability-grid">
+          {capabilities.map((item, index) => (
+            <div className="site-capability" key={item}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <strong>{item}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="scenario" className="site-section">
+        <div className="site-section-head">
+          <div>
+            <div className="site-kicker">SCENARIOS</div>
+            <h2>面向高频、真实、需要留痕的现场安全场景。</h2>
+          </div>
+        </div>
+        <div className="site-scenario-list">
+          {scenarios.map(item => <span key={item}>{item}</span>)}
+        </div>
+      </section>
+
+      <section id="insurance" className="site-insurance">
+        <div className="site-kicker">INSURANCE COLLABORATION</div>
+        <h2>为保险机构提供风险减量服务抓手。</h2>
+        <p>
+          通过服务记录、隐患闭环、风险画像、月度快照和客户经营证据，帮助保险侧看清企业安全管理变化，为续保支持、复核建议和客户经营提供过程依据。
+        </p>
+        <div className="site-flow">
+          {['服务记录', '隐患闭环', '风险画像', '续保支撑', '客户经营证据'].map(item => <span key={item}>{item}</span>)}
+        </div>
+      </section>
+
+      <section id="contact" className="site-contact">
+        <div>
+          <div className="site-kicker">CONTACT</div>
+          <h2>让现场安全管理从“做过”变成“可证明”。</h2>
+          <p>如果你正在建设企业安全管理体系、服务交付体系或保险风险减量服务，欢迎联系安巡团队。</p>
+        </div>
+        <div className="site-contact-actions">
+          <a className="site-btn site-btn-dark" href="/platform/">进入安全服务平台</a>
+          <a className="site-btn site-btn-blue" href="/self-deploy-ai-assessment">企业安全自测</a>
+          <a className="site-btn site-btn-ghost" href="mailto:contact@axsztech.cn">联系我们</a>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 function App() {
   const location = useLocation()
   const navigate = useNavigate()
+  const isMarketingSite = location.pathname === '/' || location.pathname === '/index.html'
   const [session, setSession] = useState<AuthSession | null>(() => restoreSession())
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -1452,6 +1588,7 @@ function App() {
   }
 
   useEffect(() => {
+    if (isMarketingSite) return
     if (!session && routeState.page !== 'login') {
       navigate(buildAppHref({ page: 'login' }), { replace: true })
       return
@@ -1467,17 +1604,19 @@ function App() {
       return
     }
     applyRouteState(safeRoute)
-  }, [currentHref, defaultRouteState, navigate, routeState, session])
+  }, [currentHref, defaultRouteState, isMarketingSite, navigate, routeState, session])
 
   useEffect(() => {
+    if (isMarketingSite) return
     if (!session || routeState.page === 'login') return
     if (!allowedEnterpriseIds.length) return
     if (!allowedEnterpriseIds.includes(selectedEnterpriseId)) {
       setSelectedEnterpriseId(allowedEnterpriseIds[0])
     }
-  }, [allowedEnterpriseIds, routeState.page, selectedEnterpriseId, session])
+  }, [allowedEnterpriseIds, isMarketingSite, routeState.page, selectedEnterpriseId, session])
 
   useEffect(() => {
+    if (isMarketingSite) return
     if (page !== 'tasks') return
     const nextRoute: AppRouteState = {
       page: 'tasks',
@@ -1492,9 +1631,10 @@ function App() {
       taskQuickFilter,
     }
     navigateToRoute(nextRoute, true)
-  }, [page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
+  }, [isMarketingSite, page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
 
   useEffect(() => {
+    if (isMarketingSite) return
     if (page !== 'detail') return
     const routeState: AppRouteState = {
       page: 'detail',
@@ -1503,9 +1643,10 @@ function App() {
       detailSnapshotMonth: detailSnapshotMonth || undefined,
     }
     navigateToRoute(routeState, true)
-  }, [page, selectedEnterpriseId, selectedMonth, detailSnapshotMonth])
+  }, [detailSnapshotMonth, isMarketingSite, page, selectedEnterpriseId, selectedMonth])
 
   useEffect(() => {
+    if (isMarketingSite) return
     if (page !== 'hazards') return
     navigateToRoute(
       {
@@ -1524,16 +1665,17 @@ function App() {
       },
       true,
     )
-  }, [page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
+  }, [isMarketingSite, page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
 
   useEffect(() => {
+    if (isMarketingSite) return
     if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined }, true)
     if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', selectedMonth, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter }, true)
     if (page === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter }, true)
     if (page === 'users') navigateToRoute({ page: 'users', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
     if (page === 'bigscreen') navigateToRoute({ page: 'bigscreen', selectedMonth, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter }, true)
     if (page === 'scoreConfig' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
-  }, [page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
+  }, [isMarketingSite, page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
 
   useEffect(() => {
     if (page === 'scoreDetail' && snapshotEnterpriseFilter !== 'all') {
@@ -1783,6 +1925,8 @@ function App() {
     { key: 'covered', title: '已覆盖企业数 / 总企业数', value: `${enterpriseCoveredCount}/${enterpriseTotalCount}`, desc: '查看本月已服务企业覆盖情况。', icon: Building2, action: () => navigateToRoute({ page: 'enterprises' }) },
     { key: 'completion', title: '本月服务完成率', value: `${monthlyServiceCompletionRate}%`, desc: '查看本月任务推进进度和待交付事项。', icon: Gauge, action: () => openTaskCenter('monthly', undefined, true) },
   ]
+
+  if (isMarketingSite) return <MarketingSite />
 
   if (routeState.page === 'login') {
     return (
