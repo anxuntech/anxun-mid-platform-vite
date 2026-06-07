@@ -943,6 +943,14 @@ select {
   display: grid;
   grid-template-columns: 1fr;
   gap: 24px;
+  min-width: 0;
+}
+.dashboard-main-grid > *,
+.dashboard-main-grid .card,
+.dashboard-main-grid .card-body,
+.dashboard-main-grid .risk-list,
+.dashboard-main-grid .risk-item {
+  min-width: 0;
 }
 @media (min-width: 1280px) {
   .dashboard-main-grid { grid-template-columns: minmax(0, 1.45fr) 420px; }

@@ -438,7 +438,6 @@ function MarketingSite() {
           <span>北京安巡数智科技有限公司</span>
         </a>
         <div className="site-nav-links">
-          <a href="#home">首页</a>
           <a href="#service">服务体系</a>
           <a href="#capability">功能能力</a>
           <a href="#scenario">应用场景</a>
