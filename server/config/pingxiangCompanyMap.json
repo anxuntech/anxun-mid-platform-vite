@@ -1,0 +1,23 @@
+[
+  {
+    "project_id": "pingxiang",
+    "county_name": "平乡县",
+    "company_id": "px-company-001",
+    "company_name": "平乡县兴安机械制造有限公司",
+    "caoliao_enterprise_name": "平乡县兴安机械制造有限公司"
+  },
+  {
+    "project_id": "pingxiang",
+    "county_name": "平乡县",
+    "company_id": "px-company-002",
+    "company_name": "平乡县宏达童车配件有限公司",
+    "caoliao_enterprise_name": "平乡县宏达童车配件有限公司"
+  },
+  {
+    "project_id": "pingxiang",
+    "county_name": "平乡县",
+    "company_id": "px-company-003",
+    "company_name": "平乡县瑞通橡塑制品有限公司",
+    "caoliao_enterprise_name": "平乡县瑞通橡塑制品有限公司"
+  }
+]

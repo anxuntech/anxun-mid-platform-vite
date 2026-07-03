@@ -203,6 +203,39 @@ export const identifyFormBranch = payload => {
     }
   }
 
+  if (
+    context.directType.includes('workpermit') ||
+    context.directType.includes('work_permit') ||
+    context.directType.includes('permit') ||
+    context.payloadText.includes('workpermit') ||
+    context.payloadText.includes('work_permit') ||
+    context.payloadText.includes('作业票')
+  ) {
+    return {
+      branch: 'workPermit',
+      identifyReason: 'matched-work-permit-keywords',
+      matchedKeywords: ['workPermit'],
+      ...context,
+    }
+  }
+
+  if (
+    context.directType.includes('training') ||
+    context.directType.includes('exam') ||
+    context.directType.includes('trainingexam') ||
+    context.payloadText.includes('training_exam') ||
+    context.payloadText.includes('trainingexam') ||
+    context.payloadText.includes('培训') ||
+    context.payloadText.includes('考试')
+  ) {
+    return {
+      branch: 'trainingExam',
+      identifyReason: 'matched-training-exam-keywords',
+      matchedKeywords: ['trainingExam'],
+      ...context,
+    }
+  }
+
   const taskFormMatch = includesAny(context.formName, taskKeywords)
   const taskPayloadMatch = includesAny(context.payloadText, taskKeywords)
 
@@ -300,6 +333,7 @@ export const processHazardForm = async (payload, identifyContext) => {
     recognized: true,
     hazardName: findFieldValue(fieldItems, ['隐患名称', '问题名称', '风险点']) || base.formName || '草料隐患上报',
     hazardLevel: findFieldValue(fieldItems, ['隐患等级', '风险等级', '严重程度']) || '待判定',
+    status: payload?.status || findFieldValue(fieldItems, ['状态', '处理进度', '整改情况', '复查情况']) || '',
     responsiblePerson: findFieldValue(fieldItems, ['责任人', '整改人']) || '',
     rectificationDeadline: findFieldValue(fieldItems, ['整改期限', '完成期限', '截止时间']) || '',
     summary: getResultSummary(payload, fieldItems, base.formName || '隐患上报'),
@@ -329,11 +363,50 @@ export const processServiceRecordForm = async (payload, identifyContext) => {
   }
 }
 
+export const processWorkPermitForm = async (payload, identifyContext) => {
+  console.log('[caoliao] entered work permit branch')
+  const base = buildBaseRecord(payload, identifyContext)
+  const fieldItems = identifyContext?.fieldItems || []
+  return {
+    formType: 'workPermit',
+    recognized: true,
+    permitType: payload?.permitType || findFieldValue(fieldItems, ['作业类型', '作业票类型', '特殊作业']) || base.formName || '作业票',
+    location: payload?.location || findFieldValue(fieldItems, ['作业地点', '动火地点', '部位', '地点']) || '',
+    permitStatus: payload?.status || findFieldValue(fieldItems, ['状态', '处理进度', '审批状态']) || '待审批',
+    applicant: payload?.applicant || findFieldValue(fieldItems, ['申请人', '作业负责人', '填报人', '姓名']) || base.executor,
+    summary: getResultSummary(payload, fieldItems, base.formName || '作业票记录'),
+    identifyReason: identifyContext?.identifyReason || 'matched-work-permit',
+    matchedKeywords: identifyContext?.matchedKeywords || [],
+    ...base,
+  }
+}
+
+export const processTrainingExamForm = async (payload, identifyContext) => {
+  console.log('[caoliao] entered training exam branch')
+  const base = buildBaseRecord(payload, identifyContext)
+  const fieldItems = identifyContext?.fieldItems || []
+  return {
+    formType: 'trainingExam',
+    recognized: true,
+    personName: payload?.personName || findFieldValue(fieldItems, ['姓名', '人员', '学员']) || base.executor,
+    courseName: payload?.courseName || findFieldValue(fieldItems, ['课程', '培训', '考试']) || base.formName || '培训考试',
+    trainingStatus: payload?.status || findFieldValue(fieldItems, ['完成状态', '状态']) || '已完成',
+    examResult: payload?.examResult || findFieldValue(fieldItems, ['考试结果', '结果']) || '合格',
+    score: Number(payload?.score || findFieldValue(fieldItems, ['得分', '分数', '成绩']) || 0),
+    summary: getResultSummary(payload, fieldItems, base.formName || '培训考试记录'),
+    identifyReason: identifyContext?.identifyReason || 'matched-training-exam',
+    matchedKeywords: identifyContext?.matchedKeywords || [],
+    ...base,
+  }
+}
+
 export const dispatchBusinessProcess = async payload => {
   const identifyContext = identifyFormBranch(payload)
 
   if (identifyContext.branch === 'hazard') return processHazardForm(payload, identifyContext)
   if (identifyContext.branch === 'serviceRecord') return processServiceRecordForm(payload, identifyContext)
+  if (identifyContext.branch === 'workPermit') return processWorkPermitForm(payload, identifyContext)
+  if (identifyContext.branch === 'trainingExam') return processTrainingExamForm(payload, identifyContext)
   if (identifyContext.branch === 'task') return processTaskForm(payload, identifyContext)
 
   console.log('[caoliao] form type not recognized, fallback to unknown branch')

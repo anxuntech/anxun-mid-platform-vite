@@ -4,6 +4,7 @@ import {
   isCaoliaoDataRoute,
   isCaoliaoWebhookRoute,
 } from './caoliaoRoutes.js'
+import { handleGovPingxiangRoute, isGovPingxiangRoute } from './govPingxiangRoutes.js'
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -21,6 +22,11 @@ export const routeRequest = async (request, response) => {
 
   if (isCaoliaoDataRoute(request)) {
     await handleCaoliaoDataRoute(request, response)
+    return
+  }
+
+  if (isGovPingxiangRoute(request)) {
+    await handleGovPingxiangRoute(request, response)
     return
   }
 

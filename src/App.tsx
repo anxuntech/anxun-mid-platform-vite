@@ -35,9 +35,10 @@ import {
 } from 'lucide-react'
 import { buildAppHref, parseAppLocation } from './navigation'
 import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthRole, type AuthSession } from './auth'
+import PingxiangGovDashboard from './features/pingxiang-gov/PingxiangGovDashboard'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
-type PageKey = 'login' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
+type PageKey = 'login' | 'pingxiangGov' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
 type Level = 'A' | 'B' | 'C' | 'D'
 type Risk = '高' | '中' | '低'
 type HazardStatus = '待整改' | '整改中' | '待复查' | '已闭环'
@@ -1476,6 +1477,7 @@ function App() {
     note: item.note,
   }))
   const routeState = useMemo(() => parseAppLocation(location.pathname, location.search) as AppRouteState, [location.pathname, location.search])
+  const isStandalonePage = isMarketingSite || routeState.page === 'pingxiangGov'
   const currentHref = `${location.pathname}${location.search}`
   const allowedPages = useMemo(() => (session ? new Set(roleNavMap[session.role]) : new Set<PageKey>(['login'])), [session])
   const defaultRouteState = useMemo<AppRouteState>(() => {
@@ -1590,7 +1592,7 @@ function App() {
   }
 
   useEffect(() => {
-    if (isMarketingSite) return
+    if (isStandalonePage) return
     if (!session && routeState.page !== 'login') {
       navigate(buildAppHref({ page: 'login' }), { replace: true })
       return
@@ -1606,19 +1608,19 @@ function App() {
       return
     }
     applyRouteState(safeRoute)
-  }, [currentHref, defaultRouteState, isMarketingSite, navigate, routeState, session])
+  }, [currentHref, defaultRouteState, isStandalonePage, navigate, routeState, session])
 
   useEffect(() => {
-    if (isMarketingSite) return
+    if (isStandalonePage) return
     if (!session || routeState.page === 'login') return
     if (!allowedEnterpriseIds.length) return
     if (!allowedEnterpriseIds.includes(selectedEnterpriseId)) {
       setSelectedEnterpriseId(allowedEnterpriseIds[0])
     }
-  }, [allowedEnterpriseIds, isMarketingSite, routeState.page, selectedEnterpriseId, session])
+  }, [allowedEnterpriseIds, isStandalonePage, routeState.page, selectedEnterpriseId, session])
 
   useEffect(() => {
-    if (isMarketingSite) return
+    if (isStandalonePage) return
     if (page !== 'tasks') return
     const nextRoute: AppRouteState = {
       page: 'tasks',
@@ -1633,10 +1635,10 @@ function App() {
       taskQuickFilter,
     }
     navigateToRoute(nextRoute, true)
-  }, [isMarketingSite, page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
+  }, [isStandalonePage, page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
 
   useEffect(() => {
-    if (isMarketingSite) return
+    if (isStandalonePage) return
     if (page !== 'detail') return
     const routeState: AppRouteState = {
       page: 'detail',
@@ -1645,10 +1647,10 @@ function App() {
       detailSnapshotMonth: detailSnapshotMonth || undefined,
     }
     navigateToRoute(routeState, true)
-  }, [detailSnapshotMonth, isMarketingSite, page, selectedEnterpriseId, selectedMonth])
+  }, [detailSnapshotMonth, isStandalonePage, page, selectedEnterpriseId, selectedMonth])
 
   useEffect(() => {
-    if (isMarketingSite) return
+    if (isStandalonePage) return
     if (page !== 'hazards') return
     navigateToRoute(
       {
@@ -1667,17 +1669,17 @@ function App() {
       },
       true,
     )
-  }, [isMarketingSite, page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
+  }, [isStandalonePage, page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
 
   useEffect(() => {
-    if (isMarketingSite) return
+    if (isStandalonePage) return
     if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined }, true)
     if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', selectedMonth, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter }, true)
     if (page === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter }, true)
     if (page === 'users') navigateToRoute({ page: 'users', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
     if (page === 'bigscreen') navigateToRoute({ page: 'bigscreen', selectedMonth, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter }, true)
     if (page === 'scoreConfig' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
-  }, [isMarketingSite, page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
+  }, [isStandalonePage, page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
 
   useEffect(() => {
     if (page === 'scoreDetail' && snapshotEnterpriseFilter !== 'all') {
@@ -1929,6 +1931,8 @@ function App() {
   ]
 
   if (isMarketingSite) return <MarketingSite />
+
+  if (routeState.page === 'pingxiangGov') return <PingxiangGovDashboard />
 
   if (routeState.page === 'login') {
     return (

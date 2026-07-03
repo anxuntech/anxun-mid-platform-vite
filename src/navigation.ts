@@ -1,5 +1,6 @@
 export type RoutePage =
   | 'login'
+  | 'pingxiangGov'
   | 'dashboard'
   | 'enterprises'
   | 'detail'
@@ -61,7 +62,7 @@ export type NavigationState = {
   regulatorStatusFilter?: string
 }
 
-const workspacePathMap: Record<Exclude<RoutePage, 'login' | 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards' | 'scoreDetail' | 'devices'>, string> = {
+const workspacePathMap: Record<Exclude<RoutePage, 'login' | 'pingxiangGov' | 'dashboard' | 'tasks' | 'enterprises' | 'detail' | 'hazards' | 'scoreDetail' | 'devices'>, string> = {
   scoreTrend: '/insurer',
   scoreConfig: '/workspace/score-config',
   users: '/enterprise-home',
@@ -88,7 +89,7 @@ const addParam = (params: URLSearchParams, key: string, value?: string) => {
 }
 
 const parseLegacyPage = (value: string | null): RoutePage => {
-  if (value === 'login' || value === 'dashboard' || value === 'tasks' || value === 'enterprises' || value === 'detail' || value === 'scoreDetail' || value === 'scoreTrend' || value === 'scoreConfig' || value === 'hazards' || value === 'devices' || value === 'users' || value === 'bigscreen') {
+  if (value === 'login' || value === 'pingxiangGov' || value === 'dashboard' || value === 'tasks' || value === 'enterprises' || value === 'detail' || value === 'scoreDetail' || value === 'scoreTrend' || value === 'scoreConfig' || value === 'hazards' || value === 'devices' || value === 'users' || value === 'bigscreen') {
     return value
   }
   return 'dashboard'
@@ -102,6 +103,8 @@ export const buildAppHref = (route: NavigationState): string => {
     pathname = '/dashboard'
   } else if (route.page === 'login') {
     pathname = '/login'
+  } else if (route.page === 'pingxiangGov') {
+    pathname = '/gov/pingxiang'
   } else if (route.page === 'tasks') {
     pathname = '/tasks'
     addParam(params, 'taskId', route.taskId)
@@ -170,6 +173,8 @@ export const buildAppHref = (route: NavigationState): string => {
     addParam(params, 'month', route.selectedMonth)
   }
 
+  if (route.page === 'pingxiangGov') return pathname
+
   const platformPathname = withPlatformPrefix(pathname)
   const query = params.toString()
   return query ? `${platformPathname}?${query}` : platformPathname
@@ -227,6 +232,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
   if (legacyState) return legacyState
   const normalizedPathname = stripPlatformPrefix(pathname)
 
+  if (pathname === '/gov/pingxiang' || pathname.startsWith('/gov/pingxiang/')) return { page: 'pingxiangGov' }
   if (normalizedPathname === '/login') return { page: 'login' }
   if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return { page: 'dashboard' }
   if (normalizedPathname === '/tasks') {
