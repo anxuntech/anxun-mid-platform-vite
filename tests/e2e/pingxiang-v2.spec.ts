@@ -1,6 +1,23 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const screenshotDir = 'output/playwright/pingxiang-v2-release'
+const screenshotDir = 'output/playwright/pingxiang-v2.1-release'
+
+const coreRoutes = [
+  '/gov/pingxiang',
+  '/gov/pingxiang/companies',
+  '/gov/pingxiang/companies/px-company-001',
+  '/gov/pingxiang/hazards',
+  '/gov/pingxiang/hazards/PX-YH-0001',
+  '/gov/pingxiang/inspections',
+  '/gov/pingxiang/inspections/PX-XJ-0001',
+  '/gov/pingxiang/work-permits',
+  '/gov/pingxiang/work-permits/PX-ZY-0001',
+  '/gov/pingxiang/trainings',
+  '/gov/pingxiang/trainings/PX-PX-0001',
+  '/gov/pingxiang/reports',
+  '/gov/pingxiang/reports/monthly',
+  '/gov/pingxiang/about',
+]
 
 const emptyPayload = {
   success: true,
@@ -12,108 +29,195 @@ const emptyPayload = {
   warnings: [],
 }
 
-const company = (index: number, longName = false) => ({
-  company_id: `qa-company-${index}`,
-  company_name: longName
-    ? '平乡县宏达童车配件精密制造与仓储物流综合安全管理示范有限公司'
-    : `平乡县验收企业${String(index).padStart(2, '0')}有限公司`,
-})
-
 const smallPayload = {
   ...emptyPayload,
-  companies: [company(1)],
-  hazard_reports: [{ id: 'hazard-1', company_id: 'qa-company-1', title: '配电箱周边堆放杂物', status: '待整改', submitted_at: '2026-07-20 09:30', responsible_person: '张明' }],
-  patrol_records: [{ id: 'patrol-1', company_id: 'qa-company-1', title: '灭火器压力检查', status: '正常', submitted_at: '2026-07-20 10:10', submitter: '李强' }],
-  work_permits: [{ id: 'permit-1', company_id: 'qa-company-1', permit_type: '动火作业', status: '已归档', submitted_at: '2026-07-20 11:20', applicant: '王敏' }],
-  training_exam_records: [{ id: 'training-1', company_id: 'qa-company-1', course_name: '消防安全培训', status: '已完成', exam_result: '合格', score: 92, submitted_at: '2026-07-20 14:00', person_name: '赵磊' }],
+  companies: [{ company_id: 'qa-company-1', company_name: '平乡县少数据验收企业有限公司' }],
+  hazard_reports: [{ id: 'qa-hazard-1', company_id: 'qa-company-1', title: '配电箱周边堆放杂物', status: '待整改', submitted_at: '2026-07-20 09:30', responsible_person: '张明' }],
+  patrol_records: [{ id: 'qa-patrol-1', company_id: 'qa-company-1', title: '灭火器压力检查', status: '正常', submitted_at: '2026-07-20 10:10', submitter: '李强' }],
 }
 
 const longPayload = {
   ...emptyPayload,
-  companies: Array.from({ length: 12 }, (_, index) => company(index + 1, index === 0)),
+  companies: Array.from({ length: 12 }, (_, index) => ({
+    company_id: `qa-company-${index + 1}`,
+    company_name: index === 0 ? '平乡县宏达童车配件精密制造与仓储物流综合安全管理示范有限公司' : `平乡县长文本验收企业${index + 1}有限公司`,
+  })),
 }
 
-const mockDashboard = async (page: Page, payload: object) => {
-  await page.route('**/api/gov/pingxiang/dashboard', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify(payload),
-  }))
+const mockDashboard = async (page: Page, payload: object, status = 200) => {
+  await page.route('**/api/gov/pingxiang/dashboard', route => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) }))
+  await page.route('http://127.0.0.1:8787/api/gov/pingxiang/dashboard', route => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) }))
 }
 
-const openWithoutBrowserErrors = async (page: Page, path: string) => {
+const browserErrors = (page: Page) => {
   const errors: string[] = []
-  page.on('console', message => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   page.on('pageerror', error => errors.push(error.message))
+  return errors
+}
+
+const openV21 = async (page: Page, path: string) => {
   await page.goto(path)
   await expect(page.locator('.pxv2-shell')).toBeVisible()
   await expect(page.locator('.pxv2-env-badge')).toContainText('演示环境')
-  expect(errors).toEqual([])
 }
 
-test('平乡 V2 全部路由可访问且控制台无错误', async ({ page }) => {
-  const routes = [
-    '/gov/pingxiang',
-    '/gov/pingxiang/companies',
-    '/gov/pingxiang/company/px-company-001',
-    '/gov/pingxiang/hazards',
-    '/gov/pingxiang/patrols',
-    '/gov/pingxiang/work-permits',
-    '/gov/pingxiang/training',
-    '/gov/pingxiang/reports',
-    '/gov/pingxiang/about',
-  ]
+test('全部核心路由可直达且控制台无错误', async ({ page }) => {
+  const errors = browserErrors(page)
+  for (const route of coreRoutes) await openV21(page, route)
+  expect(errors).toEqual([])
+})
 
-  for (const route of routes) {
-    await openWithoutBrowserErrors(page, route)
+test('首页8张指标全部可下钻并携带来源筛选', async ({ page }) => {
+  await openV21(page, '/gov/pingxiang')
+  const metrics = page.locator('.pxv2-metric-band .pxv2-metric')
+  await expect(metrics).toHaveCount(8)
+  const expected = ['/companies', '/companies', '/companies', '/hazards', '/hazards', '/inspections', '/work-permits', '/trainings']
+  for (let index = 0; index < expected.length; index += 1) {
+    await metrics.nth(index).click()
+    await expect(page).toHaveURL(new RegExp(`/gov/pingxiang${expected[index].replace('/', '\\/')}`))
+    await expect(page.locator('.pxv21-source-filters')).toContainText('首页指标')
+    await page.goBack()
+    await expect(page.locator('.pxv2-metric-band')).toBeVisible()
   }
 })
 
-test('生成 1440×900、1920×1080 和项目说明验收截图', async ({ page }) => {
+test('首页趋势Tooltip展示同月全部系列并可点击下钻', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/gov/pingxiang')
-  await expect(page.locator('.pxv2-env-badge')).toContainText('演示环境')
-  await page.screenshot({ path: `${screenshotDir}/overview-1440x900.png` })
-
-  await page.setViewportSize({ width: 1920, height: 1080 })
-  await page.reload()
-  await page.screenshot({ path: `${screenshotDir}/overview-1920x1080.png` })
-
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/gov/pingxiang/about')
-  await expect(page.getByRole('heading', { name: '项目介绍' })).toBeVisible()
-  await page.screenshot({ path: `${screenshotDir}/project-about-1440x900.png` })
+  await openV21(page, '/gov/pingxiang')
+  const firstChart = page.locator('.pxv21-chart-interactive').first()
+  await firstChart.locator('svg rect[role="button"]').nth(4).hover()
+  const tooltip = firstChart.locator('.pxv21-chart-tooltip')
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip).toContainText('当月新增隐患')
+  await expect(tooltip).toContainText('当月完成整改')
+  await expect(tooltip).toContainText('闭环率')
+  await expect(tooltip).toContainText('涉及企业')
+  await page.screenshot({ path: `${screenshotDir}/overview-tooltip-1440x900.png` })
+  await firstChart.locator('svg rect[role="button"]').nth(4).click()
+  await expect(page).toHaveURL(/\/gov\/pingxiang\/hazards\?.*month=2026-06/)
+  await expect(page.locator('.pxv21-source-filters')).toContainText('2026-06')
 })
 
-test('空数据状态不使用演示数字补齐', async ({ page }) => {
+test('30家企业真实分页、排序、宽抽屉、完整详情与返回状态闭环', async ({ page }) => {
+  await openV21(page, '/gov/pingxiang/companies?industry=机械制造&companyPage=1')
+  await expect(page.locator('tbody tr')).toHaveCount(6)
+  await page.getByRole('button', { name: '重置' }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(10)
+  await expect(page.getByText('共 30 条 · 每页 10 条')).toBeVisible()
+  await page.getByRole('button', { name: /下一页/ }).click()
+  await expect(page).toHaveURL(/companyPage=2/)
+  await expect(page.getByText('第 2 / 3 页')).toBeVisible()
+  await page.locator('tbody tr').first().getByRole('link', { name: '快速查看' }).click()
+  const drawer = page.locator('.pxv21-drawer')
+  await expect(drawer).toBeVisible()
+  await expect(drawer).toContainText('四项业务摘要')
+  const box = await drawer.boundingBox()
+  expect(box?.width || 0).toBeGreaterThan(800)
+  await page.screenshot({ path: `${screenshotDir}/company-drawer-1440x900.png` })
+  await drawer.getByRole('link', { name: /查看完整记录/ }).click()
+  await expect(page).toHaveURL(/\/gov\/pingxiang\/companies\/px-company-/)
+  await expect(page.getByText('近6个月四项业务趋势')).toBeVisible()
+  await page.goBack()
+  await expect(drawer).toBeVisible()
+  await page.getByRole('button', { name: '关闭详情' }).click()
+  await expect(page).toHaveURL(/companyPage=2/)
+  await expect(page.getByText('第 2 / 3 页')).toBeVisible()
+})
+
+for (const item of [
+  { name: '隐患', path: '/gov/pingxiang/hazards', detail: '/gov/pingxiang/hazards/PX-YH-0001', drawerText: '闭环流程时间轴' },
+  { name: '巡检', path: '/gov/pingxiang/inspections', detail: '/gov/pingxiang/inspections/PX-XJ-0001', drawerText: '逐项检查结果' },
+  { name: '作业票', path: '/gov/pingxiang/work-permits', detail: '/gov/pingxiang/work-permits/PX-ZY-0001', drawerText: '安全措施' },
+  { name: '培训', path: '/gov/pingxiang/trainings', detail: '/gov/pingxiang/trainings/PX-PX-0001', drawerText: '参与及考试明细' },
+]) {
+  test(`${item.name}清单—宽抽屉—完整详情闭环`, async ({ page }) => {
+    await openV21(page, item.path)
+    await page.locator('tbody tr').first().getByRole('link', { name: '快速查看' }).click()
+    await expect(page.locator('.pxv21-drawer')).toContainText(item.drawerText)
+    await expect(page.locator('.pxv21-drawer')).toContainText('查看完整记录')
+    await page.locator('.pxv21-drawer').getByRole('link', { name: /查看完整记录/ }).click()
+    await expect(page).toHaveURL(new RegExp(item.detail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    await expect(page.locator('.pxv21-detail-page')).toBeVisible()
+    await expect(page.getByText('打印 / 演示导出')).toBeVisible()
+  })
+}
+
+test('报告完整预览并下载可阅读HTML演示文件', async ({ page }) => {
+  await openV21(page, '/gov/pingxiang/reports/monthly')
+  await expect(page.getByText('月度运行报告')).toBeVisible()
+  await expect(page.getByText('演示数据，仅用于功能展示')).toBeVisible()
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: /下载演示报告/ }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/月度运行报告.*\.html$/)
+  const downloadPath = await download.path()
+  expect(downloadPath).toBeTruthy()
+})
+
+test('空数据、少数据、长文本、加载失败和图片缺失状态稳定', async ({ page }) => {
   await mockDashboard(page, emptyPayload)
-  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/gov/pingxiang?data=real')
   await expect(page.locator('.pxv2-env-badge')).toContainText('真实数据')
   await expect(page.getByText('暂无数据').first()).toBeVisible()
   await page.screenshot({ path: `${screenshotDir}/state-empty-1440x900.png` })
-})
 
-test('少数据状态可以完整呈现企业与四项记录', async ({ page }) => {
+  await page.unrouteAll({ behavior: 'wait' })
   await mockDashboard(page, smallPayload)
-  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/gov/pingxiang/companies?data=real')
-  await expect(page.getByText('平乡县验收企业01有限公司')).toBeVisible()
-  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.getByText('平乡县少数据验收企业有限公司')).toBeVisible()
   await page.screenshot({ path: `${screenshotDir}/state-small-1440x900.png` })
-})
 
-test('长文本与12家企业分页状态正常', async ({ page }) => {
+  await page.unrouteAll({ behavior: 'wait' })
   await mockDashboard(page, longPayload)
-  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/gov/pingxiang/companies?data=real')
-  await expect(page.getByText('平乡县宏达童车配件精密制造与仓储物流综合安全管理示范有限公司')).toBeVisible()
+  await expect(page.getByTitle('平乡县宏达童车配件精密制造与仓储物流综合安全管理示范有限公司')).toBeVisible()
   await expect(page.locator('tbody tr')).toHaveCount(10)
   await page.screenshot({ path: `${screenshotDir}/state-long-text-1440x900.png` })
-  await page.getByRole('button', { name: '下一页' }).click()
-  await expect(page).toHaveURL(/companyPage=2/)
-  await expect(page.locator('tbody tr')).toHaveCount(2)
-  await expect(page.getByText('第 2 / 2 页')).toBeVisible()
+
+  await page.unrouteAll({ behavior: 'wait' })
+  await mockDashboard(page, { success: false, message: '归集失败' }, 500)
+  await page.goto('/gov/pingxiang?data=real')
+  await expect(page.locator('.pxv2-env-badge.error', { hasText: '归集异常' })).toBeVisible()
+  await expect(page.getByText('暂无数据').first()).toBeVisible()
+  await page.screenshot({ path: `${screenshotDir}/state-load-failed-1440x900.png` })
+
+  await page.goto('/gov/pingxiang/hazards/PX-YH-0001')
+  await expect(page.getByText('未归集照片').first()).toBeVisible()
+  await page.screenshot({ path: `${screenshotDir}/state-missing-image-1440x900.png` })
+})
+
+test('生成规定分辨率和核心页面验收截图', async ({ page, isMobile }) => {
+  test.skip(Boolean(isMobile), '桌面截图仅在桌面项目生成')
+  const desktopShots = [
+    ['/gov/pingxiang', 'overview'], ['/gov/pingxiang/companies', 'companies'], ['/gov/pingxiang/companies/px-company-001', 'company-detail'],
+    ['/gov/pingxiang/hazards', 'hazards'], ['/gov/pingxiang/inspections', 'inspections'], ['/gov/pingxiang/work-permits', 'work-permits'], ['/gov/pingxiang/trainings', 'trainings'], ['/gov/pingxiang/reports/monthly', 'report-preview'],
+  ] as const
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  for (const [path, name] of desktopShots) { await page.goto(path); await expect(page.locator('.pxv2-shell')).toBeVisible(); await page.screenshot({ path: `${screenshotDir}/${name}-1920x1080.png` }) }
+  const drawerShots = [
+    ['/gov/pingxiang/hazards', 'hazard-drawer'], ['/gov/pingxiang/inspections', 'inspection-drawer'], ['/gov/pingxiang/work-permits', 'permit-drawer'], ['/gov/pingxiang/trainings', 'training-drawer'],
+  ] as const
+  for (const [path, name] of drawerShots) { await page.goto(path); await page.locator('tbody tr').first().getByRole('link', { name: '快速查看' }).click(); await expect(page.locator('.pxv21-drawer')).toBeVisible(); await page.screenshot({ path: `${screenshotDir}/${name}-1920x1080.png` }) }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/gov/pingxiang'); await page.screenshot({ path: `${screenshotDir}/overview-1440x900.png` })
+  await page.goto('/gov/pingxiang/hazards'); await page.locator('tbody tr').first().getByRole('link', { name: '快速查看' }).click(); await page.screenshot({ path: `${screenshotDir}/hazard-drawer-1440x900.png` })
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto('/gov/pingxiang'); await page.screenshot({ path: `${screenshotDir}/overview-1366x768.png` })
+  await page.goto('/gov/pingxiang/inspections'); await page.screenshot({ path: `${screenshotDir}/inspections-1366x768.png` })
+})
+
+test('移动端企业清单、全屏抽屉和详情页可用', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/gov/pingxiang/companies')
+  await expect(page.locator('.pxv2-shell')).toBeVisible()
+  await page.screenshot({ path: `${screenshotDir}/mobile-companies-390x844.png`, fullPage: true })
+  await page.locator('tbody tr').first().getByRole('link', { name: '快速查看' }).click()
+  const drawer = page.locator('.pxv21-drawer')
+  await expect(drawer).toBeVisible()
+  const box = await drawer.boundingBox()
+  expect(Math.round(box?.width || 0)).toBe(390)
+  await page.screenshot({ path: `${screenshotDir}/mobile-drawer-390x844.png` })
+  await drawer.getByRole('link', { name: /查看完整记录/ }).click()
+  await page.screenshot({ path: `${screenshotDir}/mobile-detail-390x844.png`, fullPage: true })
 })

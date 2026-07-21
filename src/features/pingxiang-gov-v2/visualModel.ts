@@ -44,6 +44,59 @@ export const hasExplicitPatrolPlan = (data: DashboardViewData) => (
 
 export const formatDisplayValue = (available: boolean, value: string | number) => available ? value : null
 
+export const demoPeriods = ['2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07']
+
+export const formatDateTime = (value?: string) => value || '未提供'
+
+export const trainingParticipantCount = (data: DashboardViewData) => data.trainingRecords.reduce((sum, record) => sum + (record.participants?.length || 1), 0)
+
+export const hazardTrendRows = (data: DashboardViewData, periods = demoPeriods) => periods.map(period => {
+  const records = data.hazardRecords.filter(item => monthKey(item.reported_at) === period)
+  const rectified = data.hazardRecords.filter(item => monthKey(item.rectified_at || '') === period)
+  const closed = data.hazardRecords.filter(item => monthKey(item.closed_at || '') === period)
+  const monthEnd = `${period}-31 23:59`
+  const openAtEnd = data.hazardRecords.filter(item => item.reported_at <= monthEnd && (!item.closed_at || item.closed_at > monthEnd))
+  return {
+    period,
+    added: records.length,
+    rectified: rectified.length,
+    closed: closed.length,
+    openAtEnd: openAtEnd.length,
+    closureRate: records.length ? Math.round((closed.length / records.length) * 100) : 0,
+    companyCount: new Set(records.map(item => item.company_id)).size,
+  }
+})
+
+export const patrolTrendRows = (data: DashboardViewData, periods = demoPeriods) => periods.map(period => {
+  const records = data.patrolRecords.filter(item => monthKey(item.checked_at) === period)
+  const abnormal = records.filter(item => isAbnormalPatrol(item.status))
+  return {
+    period,
+    total: records.length,
+    abnormal: abnormal.length,
+    issueRate: records.length ? Math.round((abnormal.length / records.length) * 100) : 0,
+    companyCount: new Set(records.map(item => item.company_id)).size,
+  }
+})
+
+export type UnifiedBusinessRecord = {
+  id: string
+  kind: '隐患' | '巡检' | '作业票' | '培训'
+  companyId: string
+  title: string
+  person: string
+  time: string
+  status: string
+  href: string
+}
+
+export const unifiedBusinessRecords = (data: DashboardViewData): UnifiedBusinessRecord[] => [
+  ...data.hazardRecords.map(item => ({ id: item.id, kind: '隐患' as const, companyId: item.company_id, title: item.title, person: item.reporter || item.responsible_person, time: item.reported_at, status: item.status, href: `/gov/pingxiang/hazards/${item.id}` })),
+  ...data.patrolRecords.map(item => ({ id: item.id, kind: '巡检' as const, companyId: item.company_id, title: item.checkpoint, person: item.inspector, time: item.checked_at, status: item.status, href: `/gov/pingxiang/inspections/${item.id}` })),
+  ...data.workPermitRecords.map(item => ({ id: item.id, kind: '作业票' as const, companyId: item.company_id, title: item.permit_type, person: item.applicant, time: item.submitted_at, status: item.status, href: `/gov/pingxiang/work-permits/${item.id}` })),
+  ...data.trainingRecords.map(item => ({ id: item.id, kind: '培训' as const, companyId: item.company_id, title: item.title || item.course_name, person: item.person_name, time: item.started_at || item.completed_at, status: item.status, href: `/gov/pingxiang/trainings/${item.id}` })),
+].sort((a, b) => b.time.localeCompare(a.time))
+
 export const dataSourceText = (state: PingxiangDataState) => {
   if (state.mode === 'demo') return '内部演示数据，仅用于页面功能与业务流程展示'
   if (state.status === 'error') return '真实数据归集暂不可用，页面不会使用演示数字补齐'

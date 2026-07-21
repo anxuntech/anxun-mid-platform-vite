@@ -55,7 +55,7 @@ export type CompanyRuntime = {
   latestUpdate: string
 }
 
-const isClosedHazard = (status: string) => status.includes('已整改') || status.includes('已复查') || status.includes('已闭环')
+const isClosedHazard = (status: string) => status.includes('已整改') || status.includes('已复查') || status.includes('已闭环') || status.includes('销号')
 const isOverdueHazard = (status: string) => status.includes('超期')
 const isAbnormalPatrol = (status: string) => status.includes('异常') || status.includes('漏检')
 
@@ -67,7 +67,9 @@ const latestText = (values: string[]) => {
 const runtimeStatusFromLatest = (latestUpdate: string): RunStatus => {
   if (latestUpdate === '暂无更新') return '尚未形成有效记录'
   const timestamp = Date.parse(latestUpdate.replace(' ', 'T'))
-  if (!Number.isNaN(timestamp) && Date.now() - timestamp > 30 * 24 * 60 * 60 * 1000) return '近期记录较少'
+  if (Number.isNaN(timestamp)) return '近期记录较少'
+  const recordAge = Date.now() - timestamp
+  if (recordAge > 30 * 24 * 60 * 60 * 1000) return '近期记录较少'
   return '近期有有效记录'
 }
 
