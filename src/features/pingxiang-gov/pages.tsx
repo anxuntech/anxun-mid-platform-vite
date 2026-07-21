@@ -14,7 +14,10 @@ type PageProps = {
 const companyName = (companies: CompanyRuntime[], companyId: string) =>
   companies.find(item => item.company.company_id === companyId)?.company.company_name || '未识别企业'
 
-const latest = (values: string[]) => values.filter(Boolean).sort().at(-1) || '暂无更新'
+const latest = (values: string[]) => {
+  const sorted = values.filter(Boolean).sort()
+  return sorted[sorted.length - 1] || '暂无更新'
+}
 
 const EmptyRow = ({ columns, text }: { columns: number; text: string }) => (
   <tr><td className="pxgov-empty-cell" colSpan={columns}>{text}</td></tr>

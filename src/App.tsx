@@ -34,7 +34,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { buildAppHref, parseAppLocation } from './navigation'
-import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthRole, type AuthSession } from './auth'
+import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthPage, type AuthRole, type AuthSession } from './auth'
 import PingxiangGovPlatformV2 from './features/pingxiang-gov-v2/PingxiangGovPlatformV2'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
@@ -643,7 +643,7 @@ function App() {
   const visibleNavItems = useMemo(() => {
     if (!session) return []
     const allowedPages = new Set(roleNavMap[session.role])
-    return navItems.filter(item => allowedPages.has(item.key))
+    return navItems.filter(item => allowedPages.has(item.key as AuthPage))
   }, [session])
 
   useEffect(() => {

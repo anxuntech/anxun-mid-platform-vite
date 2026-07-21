@@ -75,7 +75,7 @@ export default function PingxiangGovPlatformV2() {
   else if (location.pathname.startsWith('/gov/pingxiang/work-permits')) page = <WorkPermitsPageV2 state={state} />
   else if (location.pathname.startsWith('/gov/pingxiang/training')) page = <TrainingPageV2 state={state} />
   else if (location.pathname.startsWith('/gov/pingxiang/reports')) page = <ReportsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 state={state} />
+  else if (location.pathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 />
 
   return (
     <div className="pxv2-shell">

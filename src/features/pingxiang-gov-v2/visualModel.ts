@@ -16,7 +16,7 @@ export const latestRecordTime = (data: DashboardViewData) => {
     ...data.workPermitRecords.map(item => item.submitted_at),
     ...data.trainingRecords.map(item => item.completed_at),
   ].filter(Boolean).sort()
-  return values.at(-1) || '暂无数据'
+  return values[values.length - 1] || '暂无数据'
 }
 
 export const monthKey = (value: string) => value?.slice(0, 7) || ''

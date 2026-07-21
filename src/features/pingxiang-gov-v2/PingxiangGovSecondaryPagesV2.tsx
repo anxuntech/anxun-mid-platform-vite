@@ -59,6 +59,7 @@ const FilterSelect = ({ label, value, onChange, options }: { label: string; valu
 )
 
 const recordMonths = (values: string[]) => recentMonthKeys(values)
+const companyPageSize = 10
 
 export function CompaniesPageV2({ state }: { state: PingxiangDataState }) {
   const available = isDataAvailable(state)
@@ -73,6 +74,20 @@ export function CompaniesPageV2({ state }: { state: PingxiangDataState }) {
     const statusMatch = status === '全部' || item.runningStatus === status
     return keywordMatch && industryMatch && statusMatch
   }), [industry, keyword, state.companies, status])
+  const totalPages = Math.max(1, Math.ceil(rows.length / companyPageSize))
+  const requestedPage = Number(searchParams.get('companyPage')) || 1
+  const currentPage = Math.min(Math.max(requestedPage, 1), totalPages)
+  const pagedRows = rows.slice((currentPage - 1) * companyPageSize, currentPage * companyPageSize)
+
+  const updateSearch = (next: { status?: string; page?: number }) => {
+    const params = new URLSearchParams(searchParams)
+    if (next.status === '全部') params.delete('status')
+    else if (next.status) params.set('status', next.status)
+    const nextPage = next.page ?? 1
+    if (nextPage <= 1) params.delete('companyPage')
+    else params.set('companyPage', String(nextPage))
+    setSearchParams(params)
+  }
 
   const reset = () => {
     setKeyword('')
@@ -85,15 +100,15 @@ export function CompaniesPageV2({ state }: { state: PingxiangDataState }) {
       <PageTitle eyebrow="试点企业运行档案" title="企业清单" description="查看试点企业开通情况、四项功能记录和最近有效数据时间。" action={<span className="pxv2-count-chip">{available ? `共 ${rows.length} 家企业` : '暂无数据'}</span>} />
       <Panel title="查询条件" note="支持按企业、行业和运行状态筛选">
         <div className="pxv2-filter-bar">
-          <label className="pxv2-filter-field pxv2-filter-search"><span>企业名称</span><div><Search size={17} /><input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="请输入企业名称" /></div></label>
-          <FilterSelect label="所属行业" value={industry} onChange={setIndustry} options={industries} />
-          <FilterSelect label="运行状态" value={status} onChange={value => setSearchParams(value === '全部' ? {} : { status: value })} options={['近期有有效记录', '近期记录较少', '尚未形成有效记录']} />
+          <label className="pxv2-filter-field pxv2-filter-search"><span>企业名称</span><div><Search size={17} /><input value={keyword} onChange={event => { setKeyword(event.target.value); updateSearch({ page: 1 }) }} placeholder="请输入企业名称" /></div></label>
+          <FilterSelect label="所属行业" value={industry} onChange={value => { setIndustry(value); updateSearch({ page: 1 }) }} options={industries} />
+          <FilterSelect label="运行状态" value={status} onChange={value => updateSearch({ status: value, page: 1 })} options={['近期有有效记录', '近期记录较少', '尚未形成有效记录']} />
           <button className="pxv2-secondary-button" type="button" onClick={reset}><RotateCcw size={16} />重置</button>
         </div>
       </Panel>
       <Panel title="企业运行清单" note="企业名称可进入只读运行档案">
         <DataTable headers={['企业名称', '所属行业', '开通状态', '运行状态', '隐患', '巡检', '作业票', '培训', '最近有效数据', '操作']} minWidth={1160}>
-          {!available || rows.length === 0 ? <EmptyRow columns={10} /> : rows.map(item => (
+          {!available || rows.length === 0 ? <EmptyRow columns={10} /> : pagedRows.map(item => (
             <tr key={item.company.company_id}>
               <td><Link className="pxv2-table-link" to={`/gov/pingxiang/company/${item.company.company_id}`}>{item.company.company_name}</Link></td>
               <td>{item.company.industry || '暂无数据'}</td><td><StatusPill value={item.company.enabled ? '已开通' : '未开通'} /></td><td><StatusPill value={item.runningStatus} /></td>
@@ -102,6 +117,14 @@ export function CompaniesPageV2({ state }: { state: PingxiangDataState }) {
             </tr>
           ))}
         </DataTable>
+        <div className="pxv2-pagination" aria-label="企业清单分页">
+          <span>共 {rows.length} 家企业 · 每页 {companyPageSize} 家</span>
+          <div>
+            <button type="button" disabled={currentPage <= 1} onClick={() => updateSearch({ page: currentPage - 1 })}>上一页</button>
+            <strong>第 {currentPage} / {totalPages} 页</strong>
+            <button type="button" disabled={currentPage >= totalPages} onClick={() => updateSearch({ page: currentPage + 1 })}>下一页</button>
+          </div>
+        </div>
       </Panel>
     </div>
   )

@@ -1384,6 +1384,52 @@
   text-align: center !important;
 }
 
+.pxv2-pagination {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  color: #67778c;
+  font-size: 14px;
+}
+
+.pxv2-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pxv2-pagination strong {
+  color: #34465d;
+  font-weight: 750;
+}
+
+.pxv2-pagination button {
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid #ccd9e9;
+  border-radius: 7px;
+  color: #275985;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pxv2-pagination button:hover:not(:disabled) {
+  border-color: #8db5ec;
+  color: #0f60cf;
+  background: #f4f8fe;
+}
+
+.pxv2-pagination button:disabled {
+  color: #a2adba;
+  background: #f5f7fa;
+  cursor: not-allowed;
+}
+
 .pxv2-status {
   display: inline-flex;
   align-items: center;
@@ -1748,6 +1794,11 @@
   .pxv2-tabs,
   .pxv2-report-tabs {
     overflow-x: auto;
+  }
+
+  .pxv2-pagination {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .pxv2-status-bars > div {

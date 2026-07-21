@@ -59,7 +59,10 @@ const isClosedHazard = (status: string) => status.includes('已整改') || statu
 const isOverdueHazard = (status: string) => status.includes('超期')
 const isAbnormalPatrol = (status: string) => status.includes('异常') || status.includes('漏检')
 
-const latestText = (values: string[]) => values.filter(Boolean).sort().at(-1) || '暂无更新'
+const latestText = (values: string[]) => {
+  const sorted = values.filter(Boolean).sort()
+  return sorted[sorted.length - 1] || '暂无更新'
+}
 
 const runtimeStatusFromLatest = (latestUpdate: string): RunStatus => {
   if (latestUpdate === '暂无更新') return '尚未形成有效记录'
@@ -101,15 +104,18 @@ const makeCompanyRuntime = (data: DashboardViewData, company: PilotCompany): Com
 export const usePingxiangDashboardData = () => {
   const [mode, setModeState] = useState<PingxiangDataMode>(() => {
     try {
-      const requestedMode = new URLSearchParams(window.location.search).get('data')
+      const requestedMode = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('data') : null
       if (requestedMode === 'demo') {
         sessionStorage.setItem(storageKey, 'demo')
         return 'demo'
       }
-      if (requestedMode === 'real') sessionStorage.removeItem(storageKey)
-      return sessionStorage.getItem(storageKey) === 'demo' ? 'demo' : 'real'
+      if (requestedMode === 'real') {
+        sessionStorage.removeItem(storageKey)
+        return 'real'
+      }
+      return 'demo'
     } catch {
-      return 'real'
+      return 'demo'
     }
   })
   const [realData, setRealData] = useState<DashboardViewData | null>(null)
@@ -167,6 +173,7 @@ export const usePingxiangDashboardData = () => {
     status,
     message: mode === 'demo' ? '当前为演示环境，页面数据仅用于功能和业务流程展示' : message || '正在归集最新运行数据',
     hasLoadError: mode === 'real' && status === 'error',
+    usingFallbackDemo: false,
     data,
     overview: data.overview,
     companies,
