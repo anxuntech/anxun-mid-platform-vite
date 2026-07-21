@@ -1,5 +1,7 @@
 export type RoutePage =
+  | 'landing'
   | 'login'
+  | 'pingxiangGov'
   | 'dashboard'
   | 'enterprises'
   | 'detail'
@@ -85,7 +87,11 @@ export const buildAppHref = (route: NavigationState): string => {
   const params = new URLSearchParams()
   let pathname = '/dashboard'
 
-  if (route.page === 'dashboard') {
+  if (route.page === 'landing') {
+    pathname = '/'
+  } else if (route.page === 'pingxiangGov') {
+    pathname = '/gov/pingxiang'
+  } else if (route.page === 'dashboard') {
     pathname = '/dashboard'
   } else if (route.page === 'login') {
     pathname = '/login'
@@ -212,8 +218,10 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
   const legacyState = parseLegacyState(params)
   if (legacyState) return legacyState
 
+  if (pathname === '/') return { page: 'landing' }
+  if (pathname === '/gov/pingxiang' || pathname.startsWith('/gov/pingxiang/')) return { page: 'pingxiangGov' }
   if (pathname === '/login') return { page: 'login' }
-  if (pathname === '/' || pathname === '/dashboard') return { page: 'dashboard' }
+  if (pathname === '/dashboard') return { page: 'dashboard' }
   if (pathname === '/tasks') {
     return {
       page: 'tasks',

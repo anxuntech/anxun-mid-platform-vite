@@ -5,11 +5,13 @@ import { useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   Briefcase,
   Building2,
   Calculator,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   ClipboardCheck,
   Eye,
@@ -35,9 +37,10 @@ import {
 } from 'lucide-react'
 import { buildAppHref, parseAppLocation } from './navigation'
 import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthRole, type AuthSession } from './auth'
+import PingxiangGovPlatformV2 from './features/pingxiang-gov-v2/PingxiangGovPlatformV2'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
-type PageKey = 'login' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
+type PageKey = 'landing' | 'login' | 'pingxiangGov' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
 type Level = 'A' | 'B' | 'C' | 'D'
 type Risk = '高' | '中' | '低'
 type HazardStatus = '待整改' | '整改中' | '待复查' | '已闭环'
@@ -1194,7 +1197,7 @@ function App() {
   }))
   const routeState = useMemo(() => parseAppLocation(location.pathname, location.search) as AppRouteState, [location.pathname, location.search])
   const currentHref = `${location.pathname}${location.search}`
-  const allowedPages = useMemo(() => (session ? new Set(roleNavMap[session.role]) : new Set<PageKey>(['login'])), [session])
+  const allowedPages = useMemo(() => (session ? new Set(roleNavMap[session.role]) : new Set<PageKey>(['landing', 'login', 'pingxiangGov'])), [session])
   const defaultRouteState = useMemo<AppRouteState>(() => {
     if (!session) return { page: 'login' }
     if (session.defaultPage === 'users') return { page: 'users', enterpriseId: allowedEnterpriseIds[0] || defaultEnterpriseId, selectedMonth: dashboardMonth }
@@ -1307,6 +1310,9 @@ function App() {
   }
 
   useEffect(() => {
+    if (routeState.page === 'landing' || routeState.page === 'pingxiangGov') {
+      return
+    }
     if (!session && routeState.page !== 'login') {
       navigate(buildAppHref({ page: 'login' }), { replace: true })
       return
@@ -1325,7 +1331,7 @@ function App() {
   }, [currentHref, defaultRouteState, navigate, routeState, session])
 
   useEffect(() => {
-    if (!session || routeState.page === 'login') return
+    if (!session || routeState.page === 'login' || routeState.page === 'landing' || routeState.page === 'pingxiangGov') return
     if (!allowedEnterpriseIds.length) return
     if (!allowedEnterpriseIds.includes(selectedEnterpriseId)) {
       setSelectedEnterpriseId(allowedEnterpriseIds[0])
@@ -1333,6 +1339,7 @@ function App() {
   }, [allowedEnterpriseIds, routeState.page, selectedEnterpriseId, session])
 
   useEffect(() => {
+    if (routeState.page === 'landing' || routeState.page === 'pingxiangGov') return
     if (page !== 'tasks') return
     const nextRoute: AppRouteState = {
       page: 'tasks',
@@ -1347,20 +1354,22 @@ function App() {
       taskQuickFilter,
     }
     navigateToRoute(nextRoute, true)
-  }, [page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
+  }, [page, routeState.page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
 
   useEffect(() => {
+    if (routeState.page === 'landing' || routeState.page === 'pingxiangGov') return
     if (page !== 'detail') return
-    const routeState: AppRouteState = {
+    const nextRouteState: AppRouteState = {
       page: 'detail',
       enterpriseId: selectedEnterpriseId,
       selectedMonth,
       detailSnapshotMonth: detailSnapshotMonth || undefined,
     }
-    navigateToRoute(routeState, true)
-  }, [page, selectedEnterpriseId, selectedMonth, detailSnapshotMonth])
+    navigateToRoute(nextRouteState, true)
+  }, [page, routeState.page, selectedEnterpriseId, selectedMonth, detailSnapshotMonth])
 
   useEffect(() => {
+    if (routeState.page === 'landing' || routeState.page === 'pingxiangGov') return
     if (page !== 'hazards') return
     navigateToRoute(
       {
@@ -1379,16 +1388,17 @@ function App() {
       },
       true,
     )
-  }, [page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
+  }, [page, routeState.page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
 
   useEffect(() => {
+    if (routeState.page === 'landing' || routeState.page === 'pingxiangGov') return
     if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined }, true)
     if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', selectedMonth, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter }, true)
     if (page === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter }, true)
     if (page === 'users') navigateToRoute({ page: 'users', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
     if (page === 'bigscreen') navigateToRoute({ page: 'bigscreen', selectedMonth, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter }, true)
     if (page === 'scoreConfig' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
-  }, [page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
+  }, [page, routeState.page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
 
   useEffect(() => {
     if (page === 'scoreDetail' && snapshotEnterpriseFilter !== 'all') {
@@ -1638,6 +1648,105 @@ function App() {
     { key: 'covered', title: '已覆盖企业数 / 总企业数', value: `${enterpriseCoveredCount}/${enterpriseTotalCount}`, desc: '查看本月已服务企业覆盖情况。', icon: Building2, action: () => navigateToRoute({ page: 'enterprises' }) },
     { key: 'completion', title: '本月服务完成率', value: `${monthlyServiceCompletionRate}%`, desc: '查看本月任务推进进度和待交付事项。', icon: Gauge, action: () => openTaskCenter('monthly', undefined, true) },
   ]
+
+  if (routeState.page === 'landing') {
+    return (
+      <div className="public-home">
+        <header className="public-nav">
+          <div className="public-brand">
+            <div className="brand-badge"><ShieldCheck className="icon-md" /></div>
+            <div>
+              <div className="brand-title">安巡数智</div>
+              <div className="brand-subtitle">安全服务数字化平台</div>
+            </div>
+          </div>
+          <div className="public-nav-actions">
+            <a className="public-nav-link" href="#value">平台价值</a>
+            <a className="public-nav-link" href="#workflow">服务闭环</a>
+            <button className="btn btn-dark" onClick={() => navigate(buildAppHref({ page: 'login' }))}>进入平台 <ArrowRight className="icon-sm" /></button>
+          </div>
+        </header>
+
+        <main>
+          <section className="public-hero">
+            <div className="public-hero-copy">
+              <Badge tone="blue">面向企业、服务商、保险与监管的安全服务平台</Badge>
+              <h1>把安全服务从“做过”变成可追溯、可证明、可交付。</h1>
+              <p>
+                安巡数智围绕任务执行、隐患闭环、企业画像、月度快照和服务台账，把线下安全服务沉淀成连续数据，帮助企业看清风险、服务商管住交付、保险与监管获得可靠依据。
+              </p>
+              <div className="public-hero-actions">
+                <button className="btn btn-dark" onClick={() => navigate(buildAppHref({ page: 'login' }))}>进入平台 <ArrowRight className="icon-sm" /></button>
+                <button className="btn btn-light" onClick={() => navigate(buildAppHref({ page: 'login' }))}>账号登录</button>
+              </div>
+              <div className="public-proof-row">
+                <span><CheckCircle2 className="icon-xs" />任务调度</span>
+                <span><CheckCircle2 className="icon-xs" />隐患闭环</span>
+                <span><CheckCircle2 className="icon-xs" />月度交付</span>
+              </div>
+            </div>
+            <div className="public-product-shot" aria-label="平台能力预览">
+              <div className="public-shot-top">
+                <span>企业安全画像</span>
+                <Badge tone="red">高风险优先</Badge>
+              </div>
+              <div className="public-score-line">
+                <div>
+                  <div className="muted">本月安全得分</div>
+                  <strong>86</strong>
+                </div>
+                <div>
+                  <div className="muted">闭环率</div>
+                  <strong>92%</strong>
+                </div>
+                <div>
+                  <div className="muted">服务次数</div>
+                  <strong>18</strong>
+                </div>
+              </div>
+              <div className="public-timeline">
+                <div><span />巡检发现隐患</div>
+                <div><span />整改责任确认</div>
+                <div><span />复查通过归档</div>
+              </div>
+            </div>
+          </section>
+
+          <section id="value" className="public-section">
+            <div className="public-section-head">
+              <h2>一套平台，承接四类角色的核心问题</h2>
+              <p>不是单纯展示分数，而是把安全管理的结果、过程和证据放在同一条链路里。</p>
+            </div>
+            <div className="public-value-grid">
+              <div className="public-value-item"><Building2 className="icon-md" /><h3>企业看待办与整改</h3><p>今天该做什么、哪些隐患未闭环、整改材料是否齐套，一进首页就能看清。</p></div>
+              <div className="public-value-item"><Briefcase className="icon-md" /><h3>服务商管执行与交付</h3><p>任务、证据、复查、月度交付连续沉淀，让服务过程可追踪、可复盘。</p></div>
+              <div className="public-value-item"><LineChart className="icon-md" /><h3>保险侧看风险变化</h3><p>通过企业画像和月度快照，形成风险分层、复核建议和服务覆盖依据。</p></div>
+              <div className="public-value-item"><Siren className="icon-md" /><h3>监管侧看闭环留痕</h3><p>重点企业、超期整改、现场证据和复查结论集中呈现，便于抽查追溯。</p></div>
+            </div>
+          </section>
+
+          <section id="workflow" className="public-section public-flow-section">
+            <div className="public-section-head">
+              <h2>从任务到交付，形成可验证的安全服务闭环</h2>
+              <p>每一次检查、整改、复查和服务记录都能回到企业与月份，最终成为月度输出材料。</p>
+            </div>
+            <div className="public-flow">
+              {['任务派发', '现场执行', '隐患整改', '复查确认', '月度快照'].map((item, index) => (
+                <div key={item} className="public-flow-step">
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <strong>{item}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  if (routeState.page === 'pingxiangGov') {
+    return <PingxiangGovPlatformV2 />
+  }
 
   if (routeState.page === 'login') {
     return (
