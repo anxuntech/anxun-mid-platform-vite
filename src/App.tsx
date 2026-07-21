@@ -35,7 +35,7 @@ import {
 } from 'lucide-react'
 import { buildAppHref, parseAppLocation } from './navigation'
 import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthRole, type AuthSession } from './auth'
-import PingxiangGovDashboard from './features/pingxiang-gov/PingxiangGovDashboard'
+import PingxiangGovPlatformV2 from './features/pingxiang-gov-v2/PingxiangGovPlatformV2'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
 type PageKey = 'login' | 'pingxiangGov' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
@@ -1932,7 +1932,7 @@ function App() {
 
   if (isMarketingSite) return <MarketingSite />
 
-  if (routeState.page === 'pingxiangGov') return <PingxiangGovDashboard />
+  if (routeState.page === 'pingxiangGov') return <PingxiangGovPlatformV2 />
 
   if (routeState.page === 'login') {
     return (

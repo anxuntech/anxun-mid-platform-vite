@@ -10,8 +10,34 @@ import type { PilotCompany } from './types'
 export type PingxiangDataMode = 'demo' | 'real'
 export type PingxiangDataStatus = 'idle' | 'loading' | 'ready' | 'error'
 
-const storageKey = 'pingxiang-gov-data-mode'
+const storageKey = 'pingxiang-gov-internal-demo'
 const demoDashboardData = buildDemoDashboardData()
+const emptyDashboardData: DashboardViewData = {
+  companies: [],
+  hazardRecords: [],
+  patrolRecords: [],
+  workPermitRecords: [],
+  trainingRecords: [],
+  companyDisplay: {},
+  overview: {
+    hazardTotal: 0,
+    fixedHazards: 0,
+    pendingHazards: 0,
+    overdueHazards: 0,
+    closureRate: 0,
+    permitTotal: 0,
+    permitPending: 0,
+    permitCompleted: 0,
+    patrolTotal: 0,
+    patrolNormal: 0,
+    patrolAbnormal: 0,
+    trainingPeople: 0,
+    trainingCompleted: 0,
+    passRate: 0,
+  },
+  warnings: [],
+  isRealData: true,
+}
 
 export type CompanyRuntime = {
   company: PilotCompany
@@ -35,17 +61,30 @@ const isAbnormalPatrol = (status: string) => status.includes('异常') || status
 
 const latestText = (values: string[]) => values.filter(Boolean).sort().at(-1) || '暂无更新'
 
+const runtimeStatusFromLatest = (latestUpdate: string): RunStatus => {
+  if (latestUpdate === '暂无更新') return '尚未形成有效记录'
+  const timestamp = Date.parse(latestUpdate.replace(' ', 'T'))
+  if (!Number.isNaN(timestamp) && Date.now() - timestamp > 30 * 24 * 60 * 60 * 1000) return '近期记录较少'
+  return '近期有有效记录'
+}
+
 const makeCompanyRuntime = (data: DashboardViewData, company: PilotCompany): CompanyRuntime => {
   const hazards = data.hazardRecords.filter(item => item.company_id === company.company_id)
   const patrols = data.patrolRecords.filter(item => item.company_id === company.company_id)
   const permits = data.workPermitRecords.filter(item => item.company_id === company.company_id)
   const trainings = data.trainingRecords.filter(item => item.company_id === company.company_id)
   const display = data.companyDisplay[company.company_id]
+  const latestUpdate = latestText([
+    ...hazards.map(item => item.reported_at),
+    ...patrols.map(item => item.checked_at),
+    ...permits.map(item => item.submitted_at),
+    ...trainings.map(item => item.completed_at),
+  ])
 
   return {
     company,
     shortName: display?.shortName || company.company_name,
-    runningStatus: display?.status || '运行良好',
+    runningStatus: runtimeStatusFromLatest(latestUpdate),
     hazards,
     patrols,
     permits,
@@ -55,21 +94,22 @@ const makeCompanyRuntime = (data: DashboardViewData, company: PilotCompany): Com
     overdueHazards: hazards.filter(item => isOverdueHazard(item.status)).length,
     abnormalPatrols: display?.abnormalPatrols ?? patrols.filter(item => isAbnormalPatrol(item.status)).length,
     trainingPassRate: display?.trainingPassRate ?? 0,
-    latestUpdate: latestText([
-      ...hazards.map(item => item.reported_at),
-      ...patrols.map(item => item.checked_at),
-      ...permits.map(item => item.submitted_at),
-      ...trainings.map(item => item.completed_at),
-    ]),
+    latestUpdate,
   }
 }
 
 export const usePingxiangDashboardData = () => {
   const [mode, setModeState] = useState<PingxiangDataMode>(() => {
     try {
-      return sessionStorage.getItem(storageKey) === 'real' ? 'real' : 'demo'
+      const requestedMode = new URLSearchParams(window.location.search).get('data')
+      if (requestedMode === 'demo') {
+        sessionStorage.setItem(storageKey, 'demo')
+        return 'demo'
+      }
+      if (requestedMode === 'real') sessionStorage.removeItem(storageKey)
+      return sessionStorage.getItem(storageKey) === 'demo' ? 'demo' : 'real'
     } catch {
-      return 'demo'
+      return 'real'
     }
   })
   const [realData, setRealData] = useState<DashboardViewData | null>(null)
@@ -81,20 +121,20 @@ export const usePingxiangDashboardData = () => {
     let cancelled = false
 
     setStatus('loading')
-    setMessage('真实数据加载中')
+    setMessage('正在归集最新运行数据')
 
     fetchGovPingxiangDashboard()
       .then(data => {
         if (cancelled) return
         setRealData(data)
         setStatus('ready')
-        setMessage('当前为真实接口数据，来源于本地草料 JSONL 聚合接口')
+        setMessage('当前展示企业实际使用及项目归集数据')
       })
       .catch(error => {
         if (cancelled) return
         setRealData(null)
         setStatus('error')
-        setMessage('真实数据暂不可用，当前显示演示数据')
+        setMessage('数据暂未完成加载，请稍后刷新查看')
       })
 
     return () => {
@@ -105,9 +145,10 @@ export const usePingxiangDashboardData = () => {
   const setMode = (nextMode: PingxiangDataMode) => {
     setModeState(nextMode)
     try {
-      sessionStorage.setItem(storageKey, nextMode)
+      if (nextMode === 'demo') sessionStorage.setItem(storageKey, 'demo')
+      else sessionStorage.removeItem(storageKey)
     } catch {
-      // Session storage only keeps the mode while navigating inside the demo platform.
+      // Internal demo mode remains valid for the current render if storage is unavailable.
     }
     if (nextMode === 'demo') {
       setMessage('')
@@ -116,7 +157,7 @@ export const usePingxiangDashboardData = () => {
     setStatus('idle')
   }
 
-  const data = mode === 'real' && status === 'ready' && realData ? realData : demoDashboardData
+  const data = mode === 'demo' ? demoDashboardData : realData || emptyDashboardData
   const companies = useMemo(() => data.companies.map(company => makeCompanyRuntime(data, company)), [data])
   const companyMap = useMemo(() => new Map(companies.map(item => [item.company.company_id, item])), [companies])
 
@@ -124,8 +165,8 @@ export const usePingxiangDashboardData = () => {
     mode,
     setMode,
     status,
-    message: mode === 'demo' ? '当前为演示数据，用于展示四项闭环业务流程' : message || '当前为真实接口数据，来源于本地草料 JSONL 聚合接口',
-    usingFallbackDemo: mode === 'real' && status === 'error',
+    message: mode === 'demo' ? '当前为演示环境，页面数据仅用于功能和业务流程展示' : message || '正在归集最新运行数据',
+    hasLoadError: mode === 'real' && status === 'error',
     data,
     overview: data.overview,
     companies,

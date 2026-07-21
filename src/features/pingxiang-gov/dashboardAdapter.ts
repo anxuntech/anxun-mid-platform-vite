@@ -13,7 +13,7 @@ import type {
   WorkPermitRecord,
 } from './types'
 
-export type RunStatus = '运行良好' | '需关注' | '重点跟进'
+export type RunStatus = '近期有有效记录' | '近期记录较少' | '尚未形成有效记录'
 
 export type CompanyDisplayItem = {
   shortName: string
@@ -79,9 +79,9 @@ type GovDashboardResponse = {
 }
 
 const demoCompanyDisplay: Record<string, CompanyDisplayItem> = {
-  'px-company-001': { shortName: '兴安机械', status: '运行良好', openHazards: 0, abnormalPatrols: 0, trainingPassRate: 96, position: 'pos-a' },
-  'px-company-002': { shortName: '宏达童车', status: '需关注', openHazards: 1, abnormalPatrols: 1, trainingPassRate: 90, position: 'pos-b' },
-  'px-company-003': { shortName: '瑞通橡塑', status: '重点跟进', openHazards: 2, abnormalPatrols: 3, trainingPassRate: 84, position: 'pos-c' },
+  'px-company-001': { shortName: '兴安机械', status: '近期有有效记录', openHazards: 0, abnormalPatrols: 0, trainingPassRate: 96, position: 'pos-a' },
+  'px-company-002': { shortName: '宏达童车', status: '近期有有效记录', openHazards: 1, abnormalPatrols: 1, trainingPassRate: 90, position: 'pos-b' },
+  'px-company-003': { shortName: '瑞通橡塑', status: '近期有有效记录', openHazards: 2, abnormalPatrols: 3, trainingPassRate: 84, position: 'pos-c' },
 }
 
 const demoOverview: DashboardOverview = {
@@ -119,11 +119,9 @@ const isClosedHazard = (status: string) => status.includes('已整改') || statu
 const isOverdueHazard = (status: string) => status.includes('超期')
 const isAbnormalPatrol = (status: string) => status.includes('异常') || status.includes('漏检')
 
-const runStatusFromCounts = (openHazards: number, abnormalPatrols: number): RunStatus => {
-  if (openHazards >= 2 || abnormalPatrols >= 3) return '重点跟进'
-  if (openHazards > 0 || abnormalPatrols > 0) return '需关注'
-  return '运行良好'
-}
+const runStatusFromCounts = (recordCount: number): RunStatus => (
+  recordCount > 0 ? '近期有有效记录' : '尚未形成有效记录'
+)
 
 const toPilotCompany = (company: NonNullable<GovDashboardResponse['companies']>[number], index: number): PilotCompany => ({
   project_id,
@@ -219,7 +217,7 @@ export const adaptGovDashboardResponse = (payload: GovDashboardResponse): Dashbo
 
     acc[company.company_id] = {
       shortName: shortCompanyName(company.company_name),
-      status: runStatusFromCounts(openHazards, abnormalPatrols),
+      status: runStatusFromCounts(companyHazards.length + companyPatrols.length + companyTrainings.length),
       openHazards,
       abnormalPatrols,
       trainingPassRate: companyTrainings.length > 0 ? Math.round((passedTrainings / companyTrainings.length) * 100) : 0,
