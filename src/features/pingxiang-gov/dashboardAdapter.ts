@@ -78,29 +78,6 @@ type GovDashboardResponse = {
   warnings?: Array<string | { message?: string }>
 }
 
-const demoCompanyDisplay: Record<string, CompanyDisplayItem> = {
-  'px-company-001': { shortName: '兴安机械', status: '近期有有效记录', openHazards: 0, abnormalPatrols: 0, trainingPassRate: 96, position: 'pos-a' },
-  'px-company-002': { shortName: '宏达童车', status: '近期有有效记录', openHazards: 1, abnormalPatrols: 1, trainingPassRate: 90, position: 'pos-b' },
-  'px-company-003': { shortName: '瑞通橡塑', status: '近期有有效记录', openHazards: 2, abnormalPatrols: 3, trainingPassRate: 84, position: 'pos-c' },
-}
-
-const demoOverview: DashboardOverview = {
-  hazardTotal: 15,
-  fixedHazards: 12,
-  pendingHazards: 3,
-  overdueHazards: 1,
-  closureRate: 80,
-  permitTotal: 15,
-  permitPending: 3,
-  permitCompleted: 10,
-  patrolTotal: 30,
-  patrolNormal: 26,
-  patrolAbnormal: 4,
-  trainingPeople: 30,
-  trainingCompleted: 28,
-  passRate: 90,
-}
-
 const project_id = 'pingxiang' as const
 
 const positionForIndex = (index: number) => ['pos-a', 'pos-b', 'pos-c'][index % 3]
@@ -115,7 +92,7 @@ const shortCompanyName = (name: string) =>
 const normalizeWarnings = (warnings: GovDashboardResponse['warnings'] = []) =>
   warnings.map(item => (typeof item === 'string' ? item : item?.message || '')).filter(Boolean)
 
-const isClosedHazard = (status: string) => status.includes('已整改') || status.includes('已复查') || status.includes('已闭环')
+const isClosedHazard = (status: string) => status.includes('已整改') || status.includes('已复查') || status.includes('已闭环') || status.includes('销号')
 const isOverdueHazard = (status: string) => status.includes('超期')
 const isAbnormalPatrol = (status: string) => status.includes('异常') || status.includes('漏检')
 
@@ -187,17 +164,63 @@ const toTrainingRecord = (item: Record<string, unknown>, index: number): Trainin
   demo_data: false,
 })
 
-export const buildDemoDashboardData = (): DashboardViewData => ({
-  companies: pilotCompanies,
-  hazardRecords,
-  patrolRecords,
-  workPermitRecords,
-  trainingRecords,
-  companyDisplay: demoCompanyDisplay,
-  overview: demoOverview,
-  warnings: [],
-  isRealData: false,
-})
+export const buildDemoDashboardData = (): DashboardViewData => {
+  const companyDisplay = pilotCompanies.reduce<Record<string, CompanyDisplayItem>>((acc, company, index) => {
+    const companyHazards = hazardRecords.filter(item => item.company_id === company.company_id)
+    const companyPatrols = patrolRecords.filter(item => item.company_id === company.company_id)
+    const companyTrainings = trainingRecords.filter(item => item.company_id === company.company_id)
+    const participants = companyTrainings.flatMap(item => item.participants || [])
+    const examined = participants.filter(item => item.score !== null)
+    const passed = examined.filter(item => item.passed)
+    const recordCount = companyHazards.length + companyPatrols.length + workPermitRecords.filter(item => item.company_id === company.company_id).length + companyTrainings.length
+    acc[company.company_id] = {
+      shortName: shortCompanyName(company.company_name),
+      status: runStatusFromCounts(recordCount),
+      openHazards: companyHazards.filter(item => !isClosedHazard(item.status)).length,
+      abnormalPatrols: companyPatrols.filter(item => isAbnormalPatrol(item.status)).length,
+      trainingPassRate: examined.length ? Math.round((passed.length / examined.length) * 100) : 0,
+      position: positionForIndex(index),
+    }
+    return acc
+  }, {})
+
+  const fixedHazards = hazardRecords.filter(item => isClosedHazard(item.status)).length
+  const overdueHazards = hazardRecords.filter(item => isOverdueHazard(item.status)).length
+  const patrolAbnormal = patrolRecords.filter(item => isAbnormalPatrol(item.status)).length
+  const permitPending = workPermitRecords.filter(item => item.status === '待审批' || item.status === '审批中').length
+  const permitCompleted = workPermitRecords.filter(item => item.status === '已完成').length
+  const participants = trainingRecords.flatMap(item => item.participants || [])
+  const trainingCompleted = participants.filter(item => item.completed).length
+  const examined = participants.filter(item => item.score !== null)
+  const trainingPassed = examined.filter(item => item.passed).length
+
+  return {
+    companies: pilotCompanies,
+    hazardRecords,
+    patrolRecords,
+    workPermitRecords,
+    trainingRecords,
+    companyDisplay,
+    overview: {
+      hazardTotal: hazardRecords.length,
+      fixedHazards,
+      pendingHazards: hazardRecords.length - fixedHazards,
+      overdueHazards,
+      closureRate: hazardRecords.length ? Math.round((fixedHazards / hazardRecords.length) * 100) : 0,
+      permitTotal: workPermitRecords.length,
+      permitPending,
+      permitCompleted,
+      patrolTotal: patrolRecords.length,
+      patrolNormal: patrolRecords.length - patrolAbnormal,
+      patrolAbnormal,
+      trainingPeople: participants.length,
+      trainingCompleted,
+      passRate: examined.length ? Math.round((trainingPassed / examined.length) * 100) : 0,
+    },
+    warnings: [],
+    isRealData: false,
+  }
+}
 
 export const adaptGovDashboardResponse = (payload: GovDashboardResponse): DashboardViewData => {
   const realCompanies = (payload.companies || []).map(toPilotCompany)

@@ -29,7 +29,9 @@ import {
   ReportsPageV2,
   TrainingPageV2,
   WorkPermitsPageV2,
+  ReportPreviewPageV2,
 } from './PingxiangGovSecondaryPagesV2'
+import { BusinessRecordDetailPage, findBusinessRecord, type BusinessKind } from './RecordDetailsV2'
 import { EnvironmentNotice } from './VisualComponents'
 import { dataSourceText, isDataAvailable, latestRecordTime } from './visualModel'
 
@@ -37,9 +39,9 @@ const navItems = [
   { href: '/gov/pingxiang', label: '运行总览', icon: LayoutDashboard, exact: true },
   { href: '/gov/pingxiang/companies', label: '企业清单', icon: Building2 },
   { href: '/gov/pingxiang/hazards', label: '隐患整改', icon: AlertTriangle },
-  { href: '/gov/pingxiang/patrols', label: '巡检点检', icon: SearchCheck },
+  { href: '/gov/pingxiang/inspections', label: '巡检点检', icon: SearchCheck },
   { href: '/gov/pingxiang/work-permits', label: '作业票管理', icon: FileCheck2 },
-  { href: '/gov/pingxiang/training', label: '培训考试', icon: GraduationCap },
+  { href: '/gov/pingxiang/trainings', label: '培训考试', icon: GraduationCap },
   { href: '/gov/pingxiang/reports', label: '阶段报告', icon: FileBarChart },
   { href: '/gov/pingxiang/about', label: '项目说明', icon: ClipboardList },
 ]
@@ -51,7 +53,9 @@ export default function PingxiangGovPlatformV2() {
   const state = usePingxiangDashboardData()
   const [showDataHelp, setShowDataHelp] = useState(false)
   const available = isDataAvailable(state)
-  const companyDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/company\/([^/]+)\/?$/)
+  const companyDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/(?:companies|company)\/([^/]+)\/?$/)
+  const recordDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/(hazards|inspections|patrols|work-permits|trainings|training)\/([^/]+)\/?$/)
+  const reportDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/reports\/([^/]+)\/?$/)
   const sourceLabel = state.mode === 'demo'
     ? '内部演示数据'
     : state.status === 'ready'
@@ -68,12 +72,19 @@ export default function PingxiangGovPlatformV2() {
         : '归集中'
 
   let page = <PingxiangGovOverviewV2 state={state} />
-  if (companyDetailMatch) page = <CompanyDetailPageV2 state={state} companyId={decodeURIComponent(companyDetailMatch[1])} />
+  if (recordDetailMatch) {
+    const segment = recordDetailMatch[1]
+    const kind: BusinessKind = segment === 'hazards' ? 'hazard' : segment === 'inspections' || segment === 'patrols' ? 'inspection' : segment === 'work-permits' ? 'permit' : 'training'
+    const record = findBusinessRecord(state, kind, decodeURIComponent(recordDetailMatch[2]))
+    page = record ? <BusinessRecordDetailPage state={state} kind={kind} record={record} /> : <div className="pxv21-route-empty"><strong>未找到该记录</strong><Link to={kind === 'hazard' ? '/gov/pingxiang/hazards' : kind === 'inspection' ? '/gov/pingxiang/inspections' : kind === 'permit' ? '/gov/pingxiang/work-permits' : '/gov/pingxiang/trainings'}>返回对应清单</Link></div>
+  }
+  else if (reportDetailMatch) page = <ReportPreviewPageV2 state={state} reportId={decodeURIComponent(reportDetailMatch[1])} />
+  else if (companyDetailMatch) page = <CompanyDetailPageV2 state={state} companyId={decodeURIComponent(companyDetailMatch[1])} />
   else if (location.pathname.startsWith('/gov/pingxiang/companies')) page = <CompaniesPageV2 state={state} />
   else if (location.pathname.startsWith('/gov/pingxiang/hazards')) page = <HazardsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/patrols')) page = <PatrolsPageV2 state={state} />
+  else if (location.pathname.startsWith('/gov/pingxiang/inspections') || location.pathname.startsWith('/gov/pingxiang/patrols')) page = <PatrolsPageV2 state={state} />
   else if (location.pathname.startsWith('/gov/pingxiang/work-permits')) page = <WorkPermitsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/training')) page = <TrainingPageV2 state={state} />
+  else if (location.pathname.startsWith('/gov/pingxiang/trainings') || location.pathname.startsWith('/gov/pingxiang/training')) page = <TrainingPageV2 state={state} />
   else if (location.pathname.startsWith('/gov/pingxiang/reports')) page = <ReportsPageV2 state={state} />
   else if (location.pathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 />
 
@@ -105,10 +116,6 @@ export default function PingxiangGovPlatformV2() {
             return <Link key={item.href} className={active ? 'active' : ''} to={item.href}><Icon size={19} /><span>{item.label}</span>{active && <ChevronRight className="pxv2-active-arrow" size={16} />}</Link>
           })}
         </nav>
-        <div className="pxv2-sidebar-bottom">
-          <div className="pxv2-side-note"><strong>项目运行说明</strong><p>本平台为政府端只读运行视图，数据以企业实际记录及项目归集结果为准。</p></div>
-          <div className="pxv2-support"><HelpCircle size={16} /><span>技术支持：安巡数智科技有限公司</span></div>
-        </div>
       </aside>
 
       <main className="pxv2-main">

@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { Database, Inbox, Info } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 export type VisualTone = 'blue' | 'green' | 'violet' | 'orange' | 'cyan' | 'slate'
 
@@ -11,6 +12,7 @@ export type VisualMetric = {
   note: string
   icon: LucideIcon
   tone: VisualTone
+  href?: string
 }
 
 export type VisualChartSeries = {
@@ -22,8 +24,8 @@ export type VisualChartSeries = {
 export function MetricTile({ item }: { item: VisualMetric }) {
   const Icon = item.icon
   const missing = item.value === null || item.value === undefined || item.value === ''
-  return (
-    <article className={`pxv2-metric pxv2-tone-${item.tone} ${missing ? 'is-missing' : ''}`}>
+  const content = (
+    <>
       <span className="pxv2-metric-icon"><Icon size={26} strokeWidth={2.05} /></span>
       <div className="pxv2-metric-label">{item.label}</div>
       <div className="pxv2-metric-number">
@@ -31,8 +33,11 @@ export function MetricTile({ item }: { item: VisualMetric }) {
         {!missing && item.unit && <span>{item.unit}</span>}
       </div>
       <p>{item.note}</p>
-    </article>
+    </>
   )
+  return item.href && !missing
+    ? <Link className={`pxv2-metric pxv2-tone-${item.tone} is-clickable`} to={item.href}>{content}</Link>
+    : <article className={`pxv2-metric pxv2-tone-${item.tone} ${missing ? 'is-missing' : ''}`}>{content}</article>
 }
 
 export function Panel({ title, note, action, className = '', children }: { title: string; note?: string; action?: ReactNode; className?: string; children: ReactNode }) {
@@ -94,12 +99,13 @@ export function LineChartSvg({ labels, series, maxValue, percentage = false }: {
   )
 }
 
-export function EmptyVisual({ title = '暂无数据', description = '当前尚未归集到可展示的数据。' }: { title?: string; description?: string }) {
+export function EmptyVisual({ title = '暂无数据', description = '当前尚未归集到可展示的数据。', action }: { title?: string; description?: string; action?: ReactNode }) {
   return (
     <div className="pxv2-empty">
       <span><Inbox size={24} /></span>
       <strong>{title}</strong>
       <p>{description}</p>
+      {action && <div className="pxv21-empty-action">{action}</div>}
     </div>
   )
 }
