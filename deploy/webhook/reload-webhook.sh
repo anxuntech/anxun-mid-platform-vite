@@ -20,8 +20,31 @@ fi
 cd "${APP_DIR}"
 mkdir -p .logs
 
+ENV_FILE="${ANXUN_ENV_FILE:-/etc/anxun-mid-platform.env}"
+if [ -f "${ENV_FILE}" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "${ENV_FILE}"
+  set +a
+fi
+
 export NODE_ENV=production
 export WEBHOOK_PORT="${WEBHOOK_PORT_VALUE}"
+
+npm ci --omit=dev
+
+MIGRATION_ENV_FILE="${ANXUN_MIGRATION_ENV_FILE:-/root/.config/anxun/rds-maintenance.env}"
+if [ -f "${MIGRATION_ENV_FILE}" ]; then
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "${MIGRATION_ENV_FILE}"
+    set +a
+    npm run db:migrate
+  )
+else
+  echo "[deploy] database migration skipped: ${MIGRATION_ENV_FILE} not found"
+fi
 
 pm2 startOrReload ecosystem.config.cjs --update-env
 pm2 save

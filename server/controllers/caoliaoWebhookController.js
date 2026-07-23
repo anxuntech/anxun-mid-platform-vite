@@ -1,25 +1,28 @@
-﻿import { processCaoliaoWebhook } from '../services/caoliaoWebhookService.js'
+import { verifyWebhookRequest } from '../security/requestAuth.js'
+import { processCaoliaoWebhook } from '../services/caoliaoWebhookService.js'
 
 const readRequestBody = request =>
   new Promise((resolve, reject) => {
     const chunks = []
     let totalLength = 0
+    let settled = false
 
     request.on('data', chunk => {
+      if (settled) return
       totalLength += chunk.length
       if (totalLength > 1024 * 1024) {
+        settled = true
         reject(new Error('payload-too-large'))
-        request.destroy()
         return
       }
       chunks.push(chunk)
     })
-
     request.on('end', () => {
-      resolve(Buffer.concat(chunks).toString('utf8'))
+      if (!settled) resolve(Buffer.concat(chunks).toString('utf8'))
     })
-
-    request.on('error', reject)
+    request.on('error', error => {
+      if (!settled) reject(error)
+    })
   })
 
 const sendJson = (response, statusCode, payload) => {
@@ -38,6 +41,7 @@ export const handleCaoliaoWebhook = async (request, response) => {
 
   let rawBody = '{}'
   let parsedBody = {}
+  const auth = verifyWebhookRequest(request)
 
   try {
     rawBody = await readRequestBody(request)
@@ -52,13 +56,11 @@ export const handleCaoliaoWebhook = async (request, response) => {
       headers: request.headers,
       rawBody,
       parsedBody,
+      auth,
     })
     sendJson(response, 200, result)
   } catch (error) {
     console.error('[caoliao] controller fallback triggered', error)
-    sendJson(response, 200, {
-      success: true,
-      message: 'received',
-    })
+    sendJson(response, 200, { success: true, message: 'received' })
   }
 }

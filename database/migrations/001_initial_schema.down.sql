@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS event_replay_jobs;
+DROP TABLE IF EXISTS data_quality_issues;
+DROP TABLE IF EXISTS migration_logs;
+DROP TABLE IF EXISTS data_import_batches;
+DROP TABLE IF EXISTS record_attachments;
+DROP TABLE IF EXISTS training_records;
+DROP TABLE IF EXISTS work_permit_records;
+DROP TABLE IF EXISTS inspection_records;
+DROP TABLE IF EXISTS hazard_records;
+DROP TABLE IF EXISTS business_records;
+DROP TABLE IF EXISTS webhook_events;
+DROP TABLE IF EXISTS source_company_mappings;
+DROP TABLE IF EXISTS source_connectors;
+DROP TABLE IF EXISTS companies;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS counties;

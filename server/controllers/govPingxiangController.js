@@ -1,4 +1,5 @@
-import { buildPingxiangDashboardData } from '../services/govPingxiangDashboardService.js'
+import { verifyInternalDataRequest } from '../security/requestAuth.js'
+import { buildProtectedPingxiangData } from '../services/govPingxiangDataService.js'
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -14,41 +15,21 @@ export const handleGovPingxiangDashboard = async (request, response) => {
     return
   }
 
+  const auth = verifyInternalDataRequest(request)
+  if (!auth.accepted) {
+    sendJson(response, 401, { success: false, message: 'unauthorized' })
+    return
+  }
+
   try {
-    const dashboard = await buildPingxiangDashboardData()
-    sendJson(response, 200, {
-      success: true,
-      ...dashboard,
-    })
+    const dashboard = await buildProtectedPingxiangData()
+    sendJson(response, 200, { success: true, ...dashboard })
   } catch (error) {
     console.error('[gov:pingxiang] dashboard read failed', error)
-    sendJson(response, 200, {
-      success: true,
-      project_id: 'pingxiang',
-      county_name: '平乡县',
-      source: 'caoliao',
-      demo_data: false,
-      generated_at: new Date().toISOString(),
-      summary: {
-        company_count: 0,
-        hazard_count: 0,
-        patrol_count: 0,
-        work_permit_count: 0,
-        training_count: 0,
-        closed_hazard_count: 0,
-        pending_hazard_count: 0,
-      },
-      companies: [],
-      hazard_reports: [],
-      patrol_records: [],
-      work_permits: [],
-      training_exam_records: [],
-      warnings: [
-        {
-          type: 'dashboard-build-failed',
-          message: error instanceof Error ? error.message : String(error),
-        },
-      ],
+    const disabled = error?.message === 'real-data-source-disabled'
+    sendJson(response, disabled ? 409 : 503, {
+      success: false,
+      message: disabled ? 'real data source disabled' : 'data service unavailable',
     })
   }
 }

@@ -63,6 +63,7 @@ jobs:
           rsync -az --delete \
             --exclude ".logs" \
             server \
+            database \
             package.json \
             package-lock.json \
             ecosystem.config.cjs \

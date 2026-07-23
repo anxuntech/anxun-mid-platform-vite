@@ -1,9 +1,15 @@
 node_modules/
 dist/
 output/
+.playwright-cli/
 .vscode/
 .DS_Store
 *.zip
 *.tsbuildinfo
 .logs/*.jsonl
 .data/*.jsonl
+.data/*.bak
+.data/*.bak-*
+.env
+.env.*
+!.env.example

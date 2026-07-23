@@ -9,10 +9,21 @@
     "preview": "vite preview",
     "webhook:serve": "node server/index.js",
     "webhook:test": "node server/scripts/test-caoliao-webhook.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:server": "node --test tests/server/*.test.js",
+    "db:check": "node server/scripts/check-database.js",
+    "db:migrate": "node server/scripts/migrate-database.js",
+    "db:rollback": "node server/scripts/rollback-database.js",
+    "db:seed:pingxiang": "node server/scripts/seed-pingxiang-database.js",
+    "db:import:jsonl": "node server/scripts/import-jsonl-to-mysql.js",
+    "db:reconcile": "node server/scripts/reconcile-database.js",
+    "db:replay": "node server/scripts/replay-webhook-event.js",
+    "db:verify:replay": "node server/scripts/verify-replay-flow.js",
+    "db:event:check": "node server/scripts/check-webhook-event.js"
   },
   "dependencies": {
     "lucide-react": "^0.511.0",
+    "mysql2": "^3.14.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1"

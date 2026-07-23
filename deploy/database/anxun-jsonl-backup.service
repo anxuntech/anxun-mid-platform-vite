@@ -1,0 +1,6 @@
+[Unit]
+Description=Anxun JSONL daily backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/anxun-mid-platform-vite/deploy/database/backup-jsonl.sh

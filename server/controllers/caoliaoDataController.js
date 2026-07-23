@@ -1,3 +1,4 @@
+import { verifyInternalDataRequest } from '../security/requestAuth.js'
 import { readBusinessEvents } from '../services/caoliaoDataStore.js'
 
 const sendJson = (response, statusCode, payload) => {
@@ -6,6 +7,13 @@ const sendJson = (response, statusCode, payload) => {
     'Cache-Control': 'no-store',
   })
   response.end(JSON.stringify(payload))
+}
+
+const requireInternalAccess = (request, response) => {
+  const auth = verifyInternalDataRequest(request)
+  if (auth.accepted) return true
+  sendJson(response, 401, { success: false, message: 'unauthorized' })
+  return false
 }
 
 const getLimit = request => {
@@ -18,13 +26,9 @@ export const handleCaoliaoEvents = async (request, response) => {
     sendJson(response, 405, { success: false, message: 'method not allowed' })
     return
   }
-
+  if (!requireInternalAccess(request, response)) return
   const events = await readBusinessEvents({ limit: getLimit(request) })
-  sendJson(response, 200, {
-    success: true,
-    total: events.length,
-    items: events,
-  })
+  sendJson(response, 200, { success: true, total: events.length, items: events })
 }
 
 export const handleCaoliaoServiceRecords = async (request, response) => {
@@ -32,7 +36,7 @@ export const handleCaoliaoServiceRecords = async (request, response) => {
     sendJson(response, 405, { success: false, message: 'method not allowed' })
     return
   }
-
+  if (!requireInternalAccess(request, response)) return
   const events = await readBusinessEvents({ branch: 'serviceRecord', limit: getLimit(request) })
   sendJson(response, 200, {
     success: true,
@@ -50,7 +54,7 @@ export const handleCaoliaoHazards = async (request, response) => {
     sendJson(response, 405, { success: false, message: 'method not allowed' })
     return
   }
-
+  if (!requireInternalAccess(request, response)) return
   const events = await readBusinessEvents({ branch: 'hazard', limit: getLimit(request) })
   sendJson(response, 200, {
     success: true,
@@ -64,9 +68,5 @@ export const handleCaoliaoHazards = async (request, response) => {
 }
 
 export const handleCaoliaoHealth = async (_request, response) => {
-  sendJson(response, 200, {
-    success: true,
-    service: 'caoliao-webhook',
-    message: 'ok',
-  })
+  sendJson(response, 200, { success: true, service: 'caoliao-webhook', message: 'ok' })
 }

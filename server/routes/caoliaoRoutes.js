@@ -6,7 +6,8 @@ import {
   handleCaoliaoServiceRecords,
 } from '../controllers/caoliaoDataController.js'
 
-export const isCaoliaoWebhookRoute = request => request.url === '/api/caoliao/webhook'
+export const isCaoliaoWebhookRoute = request =>
+  new URL(request.url, 'http://localhost').pathname === '/api/caoliao/webhook'
 export const isCaoliaoDataRoute = request => {
   const pathname = new URL(request.url, 'http://localhost').pathname
   return ['/api/caoliao/health', '/api/caoliao/events', '/api/caoliao/service-records', '/api/caoliao/hazards'].includes(pathname)
