@@ -84,7 +84,7 @@ export function EvidenceGallery({ files = [], emptyText = '未归集照片' }: {
       {active && createPortal(
         <div className="pxv21-lightbox" role="dialog" aria-modal="true" aria-label={active.name} onClick={() => setActive(null)}>
           <button type="button" aria-label="关闭图片" onClick={() => setActive(null)}><X /></button>
-          <div className={`pxv21-lightbox-image tone-${active.tone || 'blue'}`} onClick={event => event.stopPropagation()}><Camera size={72} /><strong>{active.name}</strong><span>{active.kind} · 演示环境影像</span></div>
+          <div className={`pxv21-lightbox-image tone-${active.tone || 'blue'}`} onClick={event => event.stopPropagation()}><Camera size={72} /><strong>{active.name}</strong><span>{active.kind} · 现场影像</span></div>
         </div>, document.body,
       )}
     </>
@@ -146,7 +146,7 @@ export function DetailPageShell({ eyebrow, title, enterprise, status, time, back
     <div className="pxv2-page-stack pxv21-detail-page">
       <div className="pxv21-detail-hero">
         <div><Link to={backHref}><ArrowLeft size={17} />返回原清单</Link><span>{eyebrow}</span><h1>{title}</h1><p>{enterprise} · {time || '时间未提供'}</p></div>
-        <div><StatusPill value={status} /><button type="button" onClick={onPrint || (() => window.print())}><Printer size={17} />打印 / 演示导出</button></div>
+        <div><StatusPill value={status} /><button type="button" onClick={onPrint || (() => window.print())}><Printer size={17} />打印 / 导出</button></div>
       </div>
       {children}
     </div>

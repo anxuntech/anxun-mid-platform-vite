@@ -215,7 +215,7 @@ export function CompanyDetailPageV2({ state, companyId }: { state: PingxiangData
     <SummaryMetrics metrics={metrics} />
     <Panel title="近6个月四项业务趋势" note="悬浮查看同月全部数据，点击进入对应月份业务清单"><InteractiveTrendChart labels={demoPeriods.map(monthLabel)} periods={demoPeriods} series={series} maxValue={Math.max(4, ...series.flatMap(value => value.values))} onPointClick={(period, label) => navigate(`${routeBase}${label === '隐患' ? '/hazards' : label === '巡检' ? '/inspections' : label === '作业票' ? '/work-permits' : '/trainings'}?company=${companyId}&month=${period}&source=企业详情趋势`)} /></Panel>
     <Panel title="最近运行记录" note="点击记录进入完整业务详情"><div className="pxv21-recent-list is-table">{recent.map(record => <Link key={`${record.kind}-${record.id}`} to={record.href}><StatusPill value={record.kind} /><span><strong>{record.title}</strong><small>{record.time} · {record.person}</small></span><StatusPill value={record.status} /></Link>)}</div></Panel>
-    <Panel title="数据说明"><ScopeNote>当前为演示环境；数据来源、更新时间和统计结果均由同一套前端演示数据模型派生，不作为执法认定依据。</ScopeNote></Panel>
+    <Panel title="数据说明"><ScopeNote>{state.mode === 'demo' ? '当前为演示环境；数据来源、更新时间和统计结果均由同一套前端演示数据模型派生，不作为执法认定依据。' : '当前为正式项目视图；数据来源、更新时间和统计结果均来自当前账号授权范围内的项目归集数据。'}</ScopeNote></Panel>
   </div>
 }
 

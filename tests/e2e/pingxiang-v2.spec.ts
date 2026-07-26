@@ -198,7 +198,7 @@ for (const item of [
     await page.locator('.pxv21-drawer').getByRole('link', { name: /查看完整记录/ }).click()
     await expect(page).toHaveURL(new RegExp(demoPath(item.detail).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
     await expect(page.locator('.pxv21-detail-page')).toBeVisible()
-    await expect(page.getByText('打印 / 演示导出')).toBeVisible()
+    await expect(page.getByText('打印 / 导出')).toBeVisible()
   })
 }
 
