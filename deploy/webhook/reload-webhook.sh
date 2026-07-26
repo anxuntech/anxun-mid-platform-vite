@@ -35,7 +35,7 @@ export WEBHOOK_PORT="${WEBHOOK_PORT_VALUE}"
 
 npm ci --omit=dev
 
-MIGRATION_ENV_FILE="${ANXUN_MIGRATION_ENV_FILE:-/root/.config/anxun/rds-maintenance.env}"
+MIGRATION_ENV_FILE="${ANXUN_MIGRATION_ENV_FILE:-/root/.config/anxun/rds-migration.env}"
 if [ -f "${MIGRATION_ENV_FILE}" ]; then
   (
     set -a
