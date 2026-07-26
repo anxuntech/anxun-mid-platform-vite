@@ -6,12 +6,12 @@ import {
   type RunStatus,
 } from './dashboardAdapter'
 import type { PilotCompany } from './types'
+import type { DemoProjectOptions } from './dashboardAdapter'
 
 export type PingxiangDataMode = 'demo' | 'real'
 export type PingxiangDataStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 const storageKey = 'pingxiang-gov-internal-demo'
-const demoDashboardData = buildDemoDashboardData()
 const emptyDashboardData: DashboardViewData = {
   companies: [],
   hazardRecords: [],
@@ -103,7 +103,21 @@ const makeCompanyRuntime = (data: DashboardViewData, company: PilotCompany): Com
   }
 }
 
-export const usePingxiangDashboardData = ({ forcedMode }: { forcedMode?: PingxiangDataMode } = {}) => {
+export const usePingxiangDashboardData = ({
+  forcedMode,
+  projectId = 'pingxiang',
+  dashboardEndpoint = '/api/gov/pingxiang/dashboard',
+  demoProject,
+}: {
+  forcedMode?: PingxiangDataMode
+  projectId?: string
+  dashboardEndpoint?: string
+  demoProject?: DemoProjectOptions
+} = {}) => {
+  const demoDashboardData = useMemo(
+    () => buildDemoDashboardData({ projectId, ...demoProject }),
+    [demoProject, projectId],
+  )
   const [mode, setModeState] = useState<PingxiangDataMode>(() => {
     if (forcedMode) return forcedMode
     try {
@@ -132,7 +146,7 @@ export const usePingxiangDashboardData = ({ forcedMode }: { forcedMode?: Pingxia
     setStatus('loading')
     setMessage('正在归集最新运行数据')
 
-    fetchGovPingxiangDashboard()
+    fetchGovPingxiangDashboard(dashboardEndpoint)
       .then(data => {
         if (cancelled) return
         setRealData(data)
@@ -149,7 +163,7 @@ export const usePingxiangDashboardData = ({ forcedMode }: { forcedMode?: Pingxia
     return () => {
       cancelled = true
     }
-  }, [mode])
+  }, [dashboardEndpoint, mode])
 
   useEffect(() => {
     if (forcedMode) setModeState(forcedMode)

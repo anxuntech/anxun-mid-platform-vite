@@ -46,6 +46,7 @@ import {
   type AuthSession,
 } from './auth'
 import PingxiangGovPlatformV2 from './features/pingxiang-gov-v2/PingxiangGovPlatformV2'
+import { resolveGovProjectConfig } from './features/gov-projects/projectConfig'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
 type PageKey = 'login' | 'pingxiangGov' | 'dashboard' | 'enterprises' | 'detail' | 'scoreDetail' | 'scoreTrend' | 'scoreConfig' | 'hazards' | 'devices' | 'tasks' | 'users' | 'bigscreen'
@@ -53,17 +54,15 @@ type Level = 'A' | 'B' | 'C' | 'D'
 type Risk = '高' | '中' | '低'
 type HazardStatus = '待整改' | '整改中' | '待复查' | '已闭环'
 
-const safePingxiangReturnTo = (value: string | null) => {
+const safeGovReturnTo = (value: string | null) => {
   if (!value || !value.startsWith('/') || value.includes('\\') || value.startsWith('//')) return ''
   try {
     const decoded = decodeURIComponent(value)
     if (decoded.includes('\\') || decoded.startsWith('//')) return ''
     const parsed = new URL(value, window.location.origin)
     const isSameOrigin = parsed.origin === window.location.origin
-    const isPingxiangPath =
-      parsed.pathname === '/gov/pingxiang' ||
-      parsed.pathname.startsWith('/gov/pingxiang/')
-    return isSameOrigin && isPingxiangPath ? `${parsed.pathname}${parsed.search}${parsed.hash}` : ''
+    const isGovPath = /^\/gov\/[a-z0-9-]+(?:\/|$)/i.test(parsed.pathname)
+    return isSameOrigin && isGovPath ? `${parsed.pathname}${parsed.search}${parsed.hash}` : ''
   } catch {
     return ''
   }
@@ -588,7 +587,8 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const isMarketingSite = location.pathname === '/' || location.pathname === '/index.html'
-  const isPingxiangDemoPage = location.pathname === '/gov/pingxiang-demo' || location.pathname.startsWith('/gov/pingxiang-demo/')
+  const govProjectConfig = resolveGovProjectConfig(location.pathname)
+  const isGovDemoPage = govProjectConfig?.mode === 'demo'
   const [session, setSession] = useState<AuthSession | null>(null)
   const [sessionReady, setSessionReady] = useState(false)
   const [loginPending, setLoginPending] = useState(false)
@@ -675,7 +675,7 @@ function App() {
   }, [session])
 
   useEffect(() => {
-    if (isMarketingSite || isPingxiangDemoPage) {
+    if (isMarketingSite || isGovDemoPage) {
       setSessionReady(true)
       return
     }
@@ -691,7 +691,7 @@ function App() {
     return () => {
       active = false
     }
-  }, [isMarketingSite, isPingxiangDemoPage])
+  }, [isGovDemoPage, isMarketingSite])
 
   useEffect(() => {
     if (!session || session.role !== 'admin') return
@@ -1613,9 +1613,13 @@ function App() {
       const nextSession = await loginAccount(loginUsername.trim(), loginPassword)
       setSession(nextSession)
       setLoginPassword('')
-      const returnTo = safePingxiangReturnTo(new URLSearchParams(location.search).get('returnTo'))
-      const canReturnToPingxiang = Boolean(returnTo) && nextSession.projects.some(project => project.projectId === 'pingxiang')
-      navigate(canReturnToPingxiang ? returnTo : buildAppHref(nextSession.defaultPage === 'scoreTrend' ? { page: 'scoreTrend', selectedMonth: dashboardMonth, insurerAreaFilter: 'all', insurerIndustryFilter: 'all', insurerTierFilter: 'all' } : nextSession.defaultPage === 'bigscreen' ? { page: 'bigscreen', selectedMonth: dashboardMonth, regulatorAreaFilter: 'all', regulatorIndustryFilter: 'all', regulatorStatusFilter: 'all' } : { page: nextSession.defaultPage as PageKey }), { replace: true })
+      const returnTo = safeGovReturnTo(new URLSearchParams(location.search).get('returnTo'))
+      const returnProject = returnTo ? resolveGovProjectConfig(new URL(returnTo, window.location.origin).pathname) : null
+      const canReturnToProject = Boolean(returnProject) && (
+        returnProject?.mode === 'demo' ||
+        nextSession.projects.some(project => project.projectId === returnProject?.projectId)
+      )
+      navigate(canReturnToProject ? returnTo : buildAppHref(nextSession.defaultPage === 'scoreTrend' ? { page: 'scoreTrend', selectedMonth: dashboardMonth, insurerAreaFilter: 'all', insurerIndustryFilter: 'all', insurerTierFilter: 'all' } : nextSession.defaultPage === 'bigscreen' ? { page: 'bigscreen', selectedMonth: dashboardMonth, regulatorAreaFilter: 'all', regulatorIndustryFilter: 'all', regulatorStatusFilter: 'all' } : { page: nextSession.defaultPage as PageKey }), { replace: true })
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : '登录服务暂不可用，请稍后重试。')
     } finally {
@@ -1649,7 +1653,7 @@ function App() {
     }
     const safeRoute = sanitizeRouteForSession(routeState)
     const loginReturnTo = safeRoute.page === 'login'
-      ? safePingxiangReturnTo(new URLSearchParams(location.search).get('returnTo'))
+      ? safeGovReturnTo(new URLSearchParams(location.search).get('returnTo'))
       : ''
     const canonicalHref = loginReturnTo
       ? `/platform/login?returnTo=${encodeURIComponent(loginReturnTo)}`
@@ -1988,8 +1992,11 @@ function App() {
   if (isMarketingSite) return <MarketingSite />
 
   if (routeState.page === 'pingxiangGov') {
-    if (isPingxiangDemoPage) {
-      return <PingxiangGovPlatformV2 forcedMode="demo" basePath="/gov/pingxiang-demo" />
+    if (!govProjectConfig) {
+      return <div className="login-shell"><div className="login-panel"><div className="page-title">项目地址不存在</div><div className="page-subtitle">请核对县域项目访问地址。</div></div></div>
+    }
+    if (isGovDemoPage) {
+      return <PingxiangGovPlatformV2 forcedMode="demo" basePath={govProjectConfig.basePath} projectConfig={govProjectConfig} />
     }
     if (!sessionReady) {
       return <div className="login-shell"><div className="login-panel"><div className="page-title">正在确认登录状态</div><div className="page-subtitle">请稍候，系统正在安全恢复当前会话。</div></div></div>
@@ -1998,10 +2005,10 @@ function App() {
       const returnTo = `${location.pathname}${location.search}`
       return <Navigate to={`/platform/login?returnTo=${encodeURIComponent(returnTo)}`} replace />
     }
-    if (!session.projects.some(project => project.projectId === 'pingxiang')) {
-      return <div className="login-shell"><div className="login-panel"><div className="page-title">无权访问该项目</div><div className="page-subtitle">当前账号未绑定平乡县项目，请联系安巡管理员核对账号范围。</div><button className="btn btn-dark login-submit" onClick={handleLogout}>退出登录</button></div></div>
+    if (!session.projects.some(project => project.projectId === govProjectConfig.projectId)) {
+      return <div className="login-shell"><div className="login-panel"><div className="page-title">无权访问该项目</div><div className="page-subtitle">当前账号未绑定{govProjectConfig.countyName}项目，请联系安巡管理员核对账号范围。</div><button className="btn btn-dark login-submit" onClick={handleLogout}>退出登录</button></div></div>
     }
-    return <PingxiangGovPlatformV2 forcedMode="real" basePath="/gov/pingxiang" authSession={session} onLogout={handleLogout} />
+    return <PingxiangGovPlatformV2 forcedMode="real" basePath={govProjectConfig.basePath} projectConfig={govProjectConfig} authSession={session} onLogout={handleLogout} />
   }
 
   if (!sessionReady) {
