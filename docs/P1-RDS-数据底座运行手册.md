@@ -8,6 +8,18 @@
 - Webhook 强制认证仅在草料侧认证方式完成真实验证后启用。
 - 数据库只使用 RDS 内网地址，不申请公网地址。
 - 数据库凭据只保存在 ECS 的 `/etc/anxun-mid-platform.env`，权限必须为 `600`。
+- 退订、续费、计费方式变更和其他云资源管理权限只应保留给必要的管理身份，不得向数据库运行账号或日常维护账号开放。
+- `anxun_runtime` 只保留业务运行所需的 `SELECT, INSERT, UPDATE`。
+- `anxun_codex` 仅用于受控数据维护，不是 RAM 身份，不具备 RDS 实例控制层权限。
+
+## RDS 保护与续费状态
+
+- 当前实例为包年包月 `Prepaid`，到期时间为 `2027-07-22 16:00 UTC`。
+- 自动续费状态为 `Normal`、周期为 `0`，即当前未启用自动续费。
+- 本手册只记录状态，不授权自动修改续费、付费方式、退订或实例迁移。
+- 包年包月实例不支持阿里云 `DeletionProtection`，该项按 P1 验收结论标记为 `N/A（已接受例外）`。
+- 每日快照备份和 14 天保留周期必须持续启用；日志备份必须持续启用并保留 14 天。
+- 到期提醒接收渠道应由必要的云资源管理身份在阿里云费用与成本/消息中心定期核验。
 
 ## 部署顺序
 
@@ -88,6 +100,16 @@ npm run db:rollback -- 001_initial_schema
 ```
 
 脚本会检查核心表；任一表存在数据就拒绝回退。生产库不得设置该确认变量。
+
+`004_p1_data_contract` 的结构回退仅允许在临时演练库或明确允许数据丢失的空库执行：
+
+```sh
+ALLOW_DATABASE_MIGRATION_ROLLBACK=true \
+ALLOW_DATA_CONTRACT_ROLLBACK=true \
+npm run db:rollback -- 004_p1_data_contract
+```
+
+生产恢复优先使用 RDS 快照、应用回退和功能开关，不得直接对含业务数据的生产库执行 `004` down。
 
 ## JSONL 退出条件
 
