@@ -371,6 +371,7 @@ export const processServiceRecordForm = async (payload, identifyContext) => {
     formType: 'serviceRecord',
     recognized: true,
     serviceType:
+      payload?.serviceType ||
       knownServiceRecordFormMap[String(base.formNumber || '').toUpperCase()] ||
       (knownRectificationFormNumbers.includes(String(base.formNumber || '').toUpperCase()) ? '整改反馈' : '') ||
       findFieldValue(fieldItems, ['服务类型', '培训主题', '检查类型', '点检类型', '设备类型']) ||

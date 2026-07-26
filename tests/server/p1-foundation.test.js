@@ -77,6 +77,7 @@ test('四类业务记录均形成可入库的结构化字段', async () => {
     dispatchBusinessProcess({
       ...common,
       formType: 'serviceRecord',
+      serviceType: '机械设备巡检',
       resultSummary: '设备运行正常',
     }),
     dispatchBusinessProcess({
@@ -100,6 +101,7 @@ test('四类业务记录均形成可入库的结构化字段', async () => {
     'trainingExam',
   ])
   assert.ok(records.every(record => record.recognized))
+  assert.equal(records[1].serviceType, '机械设备巡检')
   assert.equal(records[2].guardian, '张三')
   assert.equal(records[3].score, 95)
 })

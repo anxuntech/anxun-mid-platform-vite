@@ -17,13 +17,21 @@ try {
   if (Number(lockRow.acquired) !== 1) throw new Error('database-migration-lock-timeout')
   migrationLockAcquired = true
 
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version VARCHAR(64) PRIMARY KEY,
-      checksum CHAR(64) NOT NULL,
-      applied_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-  `)
+  const [migrationTableRows] = await connection.query(
+    `SELECT COUNT(*) AS table_count
+       FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'schema_migrations'`,
+  )
+  if (Number(migrationTableRows[0]?.table_count || 0) === 0) {
+    await connection.query(`
+      CREATE TABLE schema_migrations (
+        version VARCHAR(64) PRIMARY KEY,
+        checksum CHAR(64) NOT NULL,
+        applied_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+    `)
+  }
 
   const files = (await readdir(migrationsDir))
     .filter(file => file.endsWith('.up.sql'))
