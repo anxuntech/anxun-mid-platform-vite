@@ -51,12 +51,14 @@ export type DashboardViewData = {
   overview: DashboardOverview
   warnings: string[]
   isRealData: boolean
+  sourceEnvironment: 'demo' | 'test' | 'real'
 }
 
 type GovDashboardResponse = {
   success?: boolean
   project_id?: string
   county_name?: string
+  source_environment?: string
   summary?: {
     company_count?: number
     hazard_count?: number
@@ -309,6 +311,7 @@ export const buildDemoDashboardData = ({
     },
     warnings: [],
     isRealData: false,
+    sourceEnvironment: 'demo',
   }
   if (projectId === 'pingxiang') return base
 
@@ -416,6 +419,7 @@ export const adaptGovDashboardResponse = (payload: GovDashboardResponse): Dashbo
     },
     warnings,
     isRealData: true,
+    sourceEnvironment: payload.source_environment === 'test' ? 'test' : 'real',
   }
 }
 

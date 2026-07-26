@@ -99,6 +99,7 @@ export const unifiedBusinessRecords = (data: DashboardViewData): UnifiedBusiness
 
 export const dataSourceText = (state: PingxiangDataState) => {
   if (state.mode === 'demo') return '内部演示数据，仅用于页面功能与业务流程展示'
+  if (state.data.sourceEnvironment === 'test') return '安巡管理员受控测试数据，仅用于数据链路和功能验证，不代表真实企业运行情况'
   if (state.status === 'error') return '真实数据归集暂不可用，页面不会使用演示数字补齐'
   if (state.status === 'loading' || state.status === 'idle') return '正在连接企业端实际记录及项目归集数据'
   return '企业端实际记录及项目归集数据'

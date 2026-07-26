@@ -11,6 +11,7 @@ import {
 } from '../../server/services/aiIntentService.js'
 import { matchAiAssistantRoute } from '../../server/routes/aiAssistantRoutes.js'
 import { matchGovProjectRoute } from '../../server/routes/govProjectRoutes.js'
+import { sourceEnvironmentForRequest } from '../../server/controllers/govPingxiangController.js'
 
 const projectRoot = path.resolve(import.meta.dirname, '..', '..')
 
@@ -96,4 +97,18 @@ test('DeepSeek key is referenced only as a server environment variable', async (
   assert.match(source, /process\.env\.DEEPSEEK_API_KEY/)
   assert.doesNotMatch(source, /sk-[a-z0-9]/i)
   assert.doesNotMatch(frontend, /DEEPSEEK_API_KEY|api\.deepseek\.com|sk-[a-z0-9]/i)
+})
+
+test('test data preview is restricted to administrators', () => {
+  const previous = process.env.P3_ADMIN_TEST_DATA_PREVIEW
+  process.env.P3_ADMIN_TEST_DATA_PREVIEW = 'true'
+  try {
+    const request = { url: '/api/gov/pingxiang/dashboard?sourceEnvironment=test' }
+    assert.equal(sourceEnvironmentForRequest(request, { role: 'admin' }), 'test')
+    assert.equal(sourceEnvironmentForRequest(request, { role: 'project_viewer' }), undefined)
+    assert.equal(sourceEnvironmentForRequest({ url: '/api/gov/pingxiang/dashboard' }, { role: 'admin' }), undefined)
+  } finally {
+    if (previous === undefined) delete process.env.P3_ADMIN_TEST_DATA_PREVIEW
+    else process.env.P3_ADMIN_TEST_DATA_PREVIEW = previous
+  }
 })

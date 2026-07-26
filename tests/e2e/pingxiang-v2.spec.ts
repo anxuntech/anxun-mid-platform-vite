@@ -46,8 +46,16 @@ const longPayload = {
 }
 
 const mockDashboard = async (page: Page, payload: object, status = 200) => {
-  await page.route('**/api/gov/pingxiang/dashboard', route => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) }))
-  await page.route('http://127.0.0.1:8787/api/gov/pingxiang/dashboard', route => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) }))
+  await page.route('**/api/gov/pingxiang/dashboard*', route => {
+    const sourceEnvironment = new URL(route.request().url()).searchParams.get('sourceEnvironment') === 'test'
+      ? 'test'
+      : 'real'
+    return route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...payload, source_environment: sourceEnvironment }),
+    })
+  })
 }
 
 const mockFormalSession = async (page: Page) => {
@@ -177,6 +185,12 @@ test('数据助手仅向管理员展示并保持受控测试数据标识', async
     }),
   }))
   await page.goto('/gov/pingxiang')
+  await expect(page.getByRole('group', { name: '管理员数据环境切换' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '真实数据' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: '测试数据' }).click()
+  await expect(page).toHaveURL(/source=test/)
+  await expect(page.locator('.pxv2-env-badge')).toContainText('测试数据预览')
+  await expect(page.getByRole('button', { name: '测试数据' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('button', { name: '数据助手' })).toBeVisible()
   await page.getByRole('button', { name: '数据助手' }).click()
   await expect(page.getByText('受控测试数据').first()).toBeVisible()

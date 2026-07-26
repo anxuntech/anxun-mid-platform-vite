@@ -993,6 +993,38 @@
   background: rgba(123, 73, 0, .26);
 }
 
+.pxv2-source-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 999px;
+  background: rgba(7, 53, 120, .28);
+}
+
+.pxv2-source-switch button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, .76);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pxv2-source-switch button.active {
+  color: #0d5593;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(7, 42, 91, .18);
+}
+
+.pxv2-env-badge.test {
+  border-color: rgba(175, 224, 255, .62);
+  color: #e9f7ff;
+  background: rgba(0, 91, 156, .3);
+}
+
 .pxv2-env-badge.error {
   border-color: rgba(255, 193, 193, .55);
   color: #fff0f0;
@@ -1071,6 +1103,16 @@
 
 .pxv2-environment.demo strong {
   color: #8b5c08;
+}
+
+.pxv2-environment.test {
+  border-color: #a9d8f2;
+  color: #235d7e;
+  background: #eef9ff;
+}
+
+.pxv2-environment.test strong {
+  color: #0b689a;
 }
 
 .pxv2-environment.error {
@@ -1798,6 +1840,10 @@
 
   .pxv2-auth-user {
     display: none;
+  }
+
+  .pxv2-source-switch button {
+    padding: 0 8px;
   }
 
   .pxv2-environment {

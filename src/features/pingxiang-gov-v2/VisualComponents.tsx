@@ -114,11 +114,21 @@ export function ScopeNote({ children }: { children: ReactNode }) {
   return <div className="pxv2-scope-note"><Info size={16} /><span>{children}</span></div>
 }
 
-export function EnvironmentNotice({ demo, status, message }: { demo: boolean; status: string; message: string }) {
+export function EnvironmentNotice({
+  environment,
+  status,
+  message,
+}: {
+  environment: 'demo' | 'test' | 'real'
+  status: string
+  message: string
+}) {
+  const kind = status === 'error' ? 'error' : environment
+  const label = environment === 'demo' ? '演示环境' : environment === 'test' ? '测试数据预览' : '真实环境'
   return (
-    <div className={`pxv2-environment ${demo ? 'demo' : status === 'error' ? 'error' : 'real'}`}>
+    <div className={`pxv2-environment ${kind}`}>
       <Database size={17} />
-      <strong>{demo ? '演示环境' : '真实环境'}</strong>
+      <strong>{label}</strong>
       <span>{message}</span>
     </div>
   )

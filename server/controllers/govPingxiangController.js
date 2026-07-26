@@ -8,6 +8,7 @@ import {
   requireTrustedCsrf,
 } from '../security/sessionAuth.js'
 import { isTrustedOrigin } from '../security/originPolicy.js'
+import { readBoolean } from '../config/runtimeConfig.js'
 import { getClientIp, getRequestId, getUserAgent, sendJson } from '../utils/http.js'
 import { writeAuthAudit, writeDownloadAudit } from '../repositories/authRepository.js'
 
@@ -61,8 +62,20 @@ const authorizePingxiang = async (request, response, permission = 'view') => {
   return null
 }
 
-const loadDashboard = async auth =>
-  sanitizeForAuth(await buildProtectedPingxiangData({ projectId }), auth)
+export const sourceEnvironmentForRequest = (request, auth) => {
+  const requested = new URL(request?.url || '/', 'http://localhost').searchParams.get('sourceEnvironment')
+  return requested === 'test'
+    && auth?.role === 'admin'
+    && readBoolean('P3_ADMIN_TEST_DATA_PREVIEW', false)
+    ? 'test'
+    : undefined
+}
+
+const loadDashboard = async (auth, sourceEnvironment) =>
+  sanitizeForAuth(await buildProtectedPingxiangData({
+    projectId,
+    sourceEnvironment,
+  }), auth)
 
 const handleReadError = (response, error) => {
   console.error('[gov:pingxiang] protected data read failed', error)
@@ -81,7 +94,10 @@ export const handleGovPingxiangDashboard = async (request, response) => {
   const access = await authorizePingxiang(request, response)
   if (!access) return
   try {
-    const dashboard = await loadDashboard(access.auth)
+    const dashboard = await loadDashboard(
+      access.auth,
+      sourceEnvironmentForRequest(request, access.auth),
+    )
     sendJson(response, 200, { success: true, ...dashboard })
   } catch (error) {
     handleReadError(response, error)
