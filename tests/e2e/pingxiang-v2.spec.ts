@@ -78,6 +78,34 @@ const mockFormalSession = async (page: Page) => {
   }))
 }
 
+const mockAdminSession = async (page: Page) => {
+  await page.route('**/api/auth/session', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      success: true,
+      session: {
+        userId: 'qa-admin',
+        username: 'qa-admin',
+        displayName: '安巡验收管理员',
+        organizationName: '安巡数智科技有限公司',
+        organizationType: 'anxun',
+        role: 'admin',
+        projects: [{
+          projectId: 'pingxiang',
+          projectSlug: 'pingxiang',
+          projectName: '平乡县企业现场安全管理项目',
+          countyId: 'pingxiang',
+          countySlug: 'pingxiang',
+          countyName: '平乡县',
+          canDownloadSummary: true,
+          canDownloadDetail: true,
+        }],
+      },
+    }),
+  }))
+}
+
 const browserErrors = (page: Page) => {
   const errors: string[] = []
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -102,6 +130,59 @@ test('正式平乡入口未登录时跳转到登录页', async ({ page }) => {
   await expect(page).toHaveURL(/\/platform\/login\?returnTo=/)
   await expect(page.getByText('安全服务平台登录')).toBeVisible()
   await expect(page.locator('form.login-form')).toBeVisible()
+})
+
+test('第二县域演示入口复用同一组件且数据与平乡隔离', async ({ page }) => {
+  await page.goto('/gov/ningjin-demo')
+  await expect(page.locator('.pxv2-shell')).toBeVisible()
+  await expect(page.locator('.pxv2-brand')).toContainText('宁晋县企业现场安全管理运行平台')
+  await expect(page.locator('.pxv2-env-badge')).toContainText('演示环境')
+  await page.getByRole('link', { name: /企业清单/ }).click()
+  await expect(page).toHaveURL(/\/gov\/ningjin-demo\/companies/)
+  await expect(page.getByText(/^宁晋县试点演示企业\d{2}有限公司$/).first()).toBeVisible()
+  await expect(page.getByText('平乡县兴安机械制造有限公司')).toHaveCount(0)
+})
+
+test('数据助手仅向管理员展示并保持受控测试数据标识', async ({ page }) => {
+  await mockAdminSession(page)
+  await mockDashboard(page, smallPayload)
+  await page.route('**/api/gov/pingxiang/assistant/query', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      success: true,
+      answer: '近30天共查询到 1 条未闭环隐患记录。',
+      intent: 'query_unclosed_hazards',
+      params: { periodDays: 30 },
+      total: 1,
+      items: [{
+        id: 'qa-hazard-1',
+        companyId: 'qa-company-1',
+        companyName: '平乡县少数据验收企业有限公司',
+        title: '配电箱周边堆放杂物',
+        status: '待整改',
+        occurredAt: '2026-07-20 09:30',
+        recordType: 'hazard',
+      }],
+      scope: {
+        companyName: '全部企业',
+        status: '全部状态',
+        startDate: '2026-06-27',
+        endDate: '2026-07-26',
+        sourceEnvironment: 'test',
+      },
+      remainingToday: 19,
+      modelFallback: false,
+      notice: '查询结果仅用于辅助研判。',
+    }),
+  }))
+  await page.goto('/gov/pingxiang')
+  await expect(page.getByRole('button', { name: '数据助手' })).toBeVisible()
+  await page.getByRole('button', { name: '数据助手' }).click()
+  await expect(page.getByText('受控测试数据').first()).toBeVisible()
+  await page.getByRole('button', { name: '未闭环隐患' }).click()
+  await expect(page.getByText('近30天共查询到 1 条未闭环隐患记录。')).toBeVisible()
+  await expect(page.getByText('受控测试数据').last()).toBeVisible()
 })
 
 test('登录返回地址拒绝协议相对地址和反斜杠绕过', async ({ page }) => {

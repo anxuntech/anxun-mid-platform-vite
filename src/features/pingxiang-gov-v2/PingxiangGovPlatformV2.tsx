@@ -37,6 +37,8 @@ import {
 import { BusinessRecordDetailPage, findBusinessRecord, type BusinessKind } from './RecordDetailsV2'
 import { EnvironmentNotice } from './VisualComponents'
 import { dataSourceText, isDataAvailable, latestRecordTime } from './visualModel'
+import type { GovProjectConfig } from '../gov-projects/projectConfig'
+import DataAssistant from './DataAssistant'
 
 const navItems = [
   { href: '/gov/pingxiang', label: '运行总览', icon: LayoutDashboard, exact: true },
@@ -54,17 +56,28 @@ const routeIsActive = (pathname: string, href: string, exact?: boolean) => exact
 export default function PingxiangGovPlatformV2({
   forcedMode = 'demo',
   basePath = '/gov/pingxiang',
+  projectConfig,
   authSession,
   onLogout,
 }: {
   forcedMode?: PingxiangDataMode
-  basePath?: '/gov/pingxiang' | '/gov/pingxiang-demo'
+  basePath?: string
+  projectConfig: GovProjectConfig
   authSession?: AuthSession
   onLogout?: () => void | Promise<void>
 }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const state = usePingxiangDashboardData({ forcedMode })
+  const state = usePingxiangDashboardData({
+    forcedMode,
+    projectId: projectConfig.projectId,
+    dashboardEndpoint: projectConfig.dashboardEndpoint,
+    demoProject: {
+      projectId: projectConfig.projectId,
+      countyName: projectConfig.countyName,
+      companyPrefix: projectConfig.companyPrefix,
+    },
+  })
   const [showDataHelp, setShowDataHelp] = useState(false)
   const available = isDataAvailable(state)
   const canonicalPathname = location.pathname.replace(basePath, '/gov/pingxiang')
@@ -91,7 +104,8 @@ export default function PingxiangGovPlatformV2({
     const segment = recordDetailMatch[1]
     const kind: BusinessKind = segment === 'hazards' ? 'hazard' : segment === 'inspections' || segment === 'patrols' ? 'inspection' : segment === 'work-permits' ? 'permit' : 'training'
     const record = findBusinessRecord(state, kind, decodeURIComponent(recordDetailMatch[2]))
-    page = record ? <BusinessRecordDetailPage state={state} kind={kind} record={record} /> : <div className="pxv21-route-empty"><strong>未找到该记录</strong><Link to={kind === 'hazard' ? '/gov/pingxiang/hazards' : kind === 'inspection' ? '/gov/pingxiang/inspections' : kind === 'permit' ? '/gov/pingxiang/work-permits' : '/gov/pingxiang/trainings'}>返回对应清单</Link></div>
+    const returnPath = kind === 'hazard' ? 'hazards' : kind === 'inspection' ? 'inspections' : kind === 'permit' ? 'work-permits' : 'trainings'
+    page = record ? <BusinessRecordDetailPage state={state} kind={kind} record={record} /> : <div className="pxv21-route-empty"><strong>未找到该记录</strong><Link to={`${basePath}/${returnPath}`}>返回对应清单</Link></div>
   }
   else if (reportDetailMatch) page = <ReportPreviewPageV2 state={state} reportId={decodeURIComponent(reportDetailMatch[1])} />
   else if (companyDetailMatch) page = <CompanyDetailPageV2 state={state} companyId={decodeURIComponent(companyDetailMatch[1])} />
@@ -103,8 +117,8 @@ export default function PingxiangGovPlatformV2({
   else if (canonicalPathname.startsWith('/gov/pingxiang/reports')) page = <ReportsPageV2 state={state} />
   else if (canonicalPathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 state={state} />
 
-  const keepDemoNavigation = (event: MouseEvent<HTMLDivElement>) => {
-    if (basePath !== '/gov/pingxiang-demo') return
+  const keepProjectNavigation = (event: MouseEvent<HTMLDivElement>) => {
+    if (basePath === '/gov/pingxiang') return
     const anchor = (event.target as HTMLElement).closest('a')
     const href = anchor?.getAttribute('href') || ''
     if (href === basePath || href.startsWith(`${basePath}/`)) return
@@ -114,11 +128,11 @@ export default function PingxiangGovPlatformV2({
   }
 
   return (
-    <div className="pxv2-shell" onClickCapture={keepDemoNavigation}>
+    <div className="pxv2-shell" onClickCapture={keepProjectNavigation}>
       <header className="pxv2-header">
-        <Link className="pxv2-brand" to="/gov/pingxiang" aria-label="返回运行总览">
+        <Link className="pxv2-brand" to={basePath} aria-label="返回运行总览">
           <span className="pxv2-brand-mark"><Landmark size={29} /></span>
-          <div><h1>平乡县企业现场安全管理运行平台</h1><p>四项功能试点运行监测</p></div>
+          <div><h1>{projectConfig.platformTitle}</h1><p>{projectConfig.platformSubtitle}</p></div>
         </Link>
         <div className="pxv2-header-facts">
           <div><CalendarClock size={16} /><span>最近有效数据</span><strong>{available ? latestRecordTime(state.data) : '暂无数据'}</strong></div>
@@ -136,11 +150,11 @@ export default function PingxiangGovPlatformV2({
       </header>
 
       <aside className="pxv2-sidebar">
-        <nav aria-label="平乡县政府端功能导航">
+        <nav aria-label={`${projectConfig.countyName}政府端功能导航`}>
           {navItems.map(item => {
             const Icon = item.icon
             const active = routeIsActive(canonicalPathname, item.href, item.exact) || (item.href === '/gov/pingxiang/companies' && Boolean(companyDetailMatch))
-            return <Link key={item.href} className={active ? 'active' : ''} to={item.href}><Icon size={19} /><span>{item.label}</span>{active && <ChevronRight className="pxv2-active-arrow" size={16} />}</Link>
+            return <Link key={item.href} className={active ? 'active' : ''} to={item.href.replace('/gov/pingxiang', basePath)}><Icon size={19} /><span>{item.label}</span>{active && <ChevronRight className="pxv2-active-arrow" size={16} />}</Link>
           })}
         </nav>
       </aside>
@@ -150,7 +164,10 @@ export default function PingxiangGovPlatformV2({
         {page}
       </main>
 
-      <footer className="pxv2-footer"><span>平乡县企业现场安全管理运行平台</span><div><span>项目实施与平台技术支持：安巡数智科技有限公司</span><span>政府端只读视图</span></div></footer>
+      {authSession?.role === 'admin' && projectConfig.mode === 'real' && (
+        <DataAssistant config={projectConfig} />
+      )}
+      <footer className="pxv2-footer"><span>{projectConfig.platformTitle}</span><div><span>项目实施与平台技术支持：安巡数智科技有限公司</span><span>政府端只读视图</span></div></footer>
     </div>
   )
 }

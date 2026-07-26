@@ -232,12 +232,7 @@ export const parseAppLocation = (pathname: string, search: string): NavigationSt
   if (legacyState) return legacyState
   const normalizedPathname = stripPlatformPrefix(pathname)
 
-  if (
-    pathname === '/gov/pingxiang' ||
-    pathname.startsWith('/gov/pingxiang/') ||
-    pathname === '/gov/pingxiang-demo' ||
-    pathname.startsWith('/gov/pingxiang-demo/')
-  ) return { page: 'pingxiangGov' }
+  if (/^\/gov\/[a-z0-9-]+(?:\/|$)/i.test(pathname)) return { page: 'pingxiangGov' }
   if (normalizedPathname === '/login') return { page: 'login' }
   if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return { page: 'dashboard' }
   if (normalizedPathname === '/tasks') {

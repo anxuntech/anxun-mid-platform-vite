@@ -85,8 +85,6 @@ type GovDashboardResponse = {
   warnings?: Array<string | { message?: string }>
 }
 
-const project_id = 'pingxiang' as const
-
 const positionForIndex = (index: number) => ['pos-a', 'pos-b', 'pos-c'][index % 3]
 
 const shortCompanyName = (name: string) =>
@@ -149,8 +147,8 @@ const normalizeHazardLevel = (value: unknown): HazardRecord['level'] => {
   return '中'
 }
 
-const toPilotCompany = (company: NonNullable<GovDashboardResponse['companies']>[number], index: number): PilotCompany => ({
-  project_id,
+const toPilotCompany = (projectId: string) => (company: NonNullable<GovDashboardResponse['companies']>[number], index: number): PilotCompany => ({
+  project_id: projectId,
   company_id: company.company_id || `real-company-${index + 1}`,
   company_name: company.company_name || company.caoliao_enterprise_name || '未识别企业',
   industry: company.industry || '暂无行业信息',
@@ -170,8 +168,8 @@ const toPilotCompany = (company: NonNullable<GovDashboardResponse['companies']>[
   demo_data: false,
 })
 
-const toHazardRecord = (item: Record<string, unknown>, index: number): HazardRecord => ({
-  project_id,
+const toHazardRecord = (projectId: string) => (item: Record<string, unknown>, index: number): HazardRecord => ({
+  project_id: projectId,
   company_id: String(item.company_id || 'unknown-company'),
   id: String(item.id || `real-hazard-${index + 1}`),
   title: String(item.title || '草料隐患上报'),
@@ -190,8 +188,8 @@ const toHazardRecord = (item: Record<string, unknown>, index: number): HazardRec
   demo_data: false,
 })
 
-const toPatrolRecord = (item: Record<string, unknown>, index: number): PatrolRecord => ({
-  project_id,
+const toPatrolRecord = (projectId: string) => (item: Record<string, unknown>, index: number): PatrolRecord => ({
+  project_id: projectId,
   company_id: String(item.company_id || 'unknown-company'),
   id: String(item.id || `real-patrol-${index + 1}`),
   route_name: String(item.route_name || item.service_type || item.title || '草料巡检记录'),
@@ -208,8 +206,8 @@ const toPatrolRecord = (item: Record<string, unknown>, index: number): PatrolRec
   demo_data: false,
 })
 
-const toWorkPermitRecord = (item: Record<string, unknown>, index: number): WorkPermitRecord => ({
-  project_id,
+const toWorkPermitRecord = (projectId: string) => (item: Record<string, unknown>, index: number): WorkPermitRecord => ({
+  project_id: projectId,
   company_id: String(item.company_id || 'unknown-company'),
   id: String(item.id || `real-work-permit-${index + 1}`),
   permit_type: String(item.permit_type || item.title || '作业票'),
@@ -226,8 +224,8 @@ const toWorkPermitRecord = (item: Record<string, unknown>, index: number): WorkP
   demo_data: false,
 })
 
-const toTrainingRecord = (item: Record<string, unknown>, index: number): TrainingRecord => ({
-  project_id,
+const toTrainingRecord = (projectId: string) => (item: Record<string, unknown>, index: number): TrainingRecord => ({
+  project_id: projectId,
   company_id: String(item.company_id || 'unknown-company'),
   id: String(item.id || `real-training-${index + 1}`),
   person_name: String(item.person_name || item.submitter || ''),
@@ -246,7 +244,17 @@ const toTrainingRecord = (item: Record<string, unknown>, index: number): Trainin
   demo_data: false,
 })
 
-export const buildDemoDashboardData = (): DashboardViewData => {
+export type DemoProjectOptions = {
+  projectId?: string
+  countyName?: string
+  companyPrefix?: string
+}
+
+export const buildDemoDashboardData = ({
+  projectId = 'pingxiang',
+  countyName = '平乡县',
+  companyPrefix = '',
+}: DemoProjectOptions = {}): DashboardViewData => {
   const companyDisplay = pilotCompanies.reduce<Record<string, CompanyDisplayItem>>((acc, company, index) => {
     const companyHazards = hazardRecords.filter(item => item.company_id === company.company_id)
     const companyPatrols = patrolRecords.filter(item => item.company_id === company.company_id)
@@ -276,7 +284,7 @@ export const buildDemoDashboardData = (): DashboardViewData => {
   const examined = participants.filter(item => item.score !== null)
   const trainingPassed = examined.filter(item => item.passed).length
 
-  return {
+  const base = {
     companies: pilotCompanies,
     hazardRecords,
     patrolRecords,
@@ -302,14 +310,54 @@ export const buildDemoDashboardData = (): DashboardViewData => {
     warnings: [],
     isRealData: false,
   }
+  if (projectId === 'pingxiang') return base
+
+  const companyIdMap = new Map(base.companies.map((company, index) => [
+    company.company_id,
+    `${projectId}-company-${String(index + 1).padStart(3, '0')}`,
+  ]))
+  const mapCompanyName = (name: string, index: number) =>
+    companyPrefix
+      ? `${countyName}${companyPrefix}${String(index + 1).padStart(2, '0')}有限公司`
+      : name.replace(/^平乡县/, countyName)
+  const companies = base.companies.map((company, index) => ({
+    ...company,
+    project_id: projectId,
+    company_id: companyIdMap.get(company.company_id) || company.company_id,
+    company_name: mapCompanyName(company.company_name, index),
+    address: company.address.replace(/^平乡县/, countyName),
+  }))
+  const remapRecord = <T extends { project_id: string; company_id: string; id: string }>(record: T, index: number): T => ({
+    ...record,
+    project_id: projectId,
+    company_id: companyIdMap.get(record.company_id) || record.company_id,
+    id: `${projectId}-${record.id || index + 1}`,
+  })
+  const transformed = {
+    ...base,
+    companies,
+    hazardRecords: base.hazardRecords.map(remapRecord),
+    patrolRecords: base.patrolRecords.map(remapRecord),
+    workPermitRecords: base.workPermitRecords.map(remapRecord),
+    trainingRecords: base.trainingRecords.map(remapRecord),
+    companyDisplay: Object.fromEntries(base.companies.map((company, index) => [
+      companyIdMap.get(company.company_id) || company.company_id,
+      {
+        ...base.companyDisplay[company.company_id],
+        shortName: `${companyPrefix || '演示企业'}${String(index + 1).padStart(2, '0')}`,
+      },
+    ])),
+  }
+  return transformed
 }
 
 export const adaptGovDashboardResponse = (payload: GovDashboardResponse): DashboardViewData => {
-  const baseCompanies = (payload.companies || []).map(toPilotCompany)
-  const realHazards = (payload.hazard_reports || []).map(toHazardRecord)
-  const realPatrols = (payload.patrol_records || []).map(toPatrolRecord)
-  const realWorkPermits = (payload.work_permits || []).map(toWorkPermitRecord)
-  const realTrainings = (payload.training_exam_records || []).map(toTrainingRecord)
+  const projectId = payload.project_id || 'pingxiang'
+  const baseCompanies = (payload.companies || []).map(toPilotCompany(projectId))
+  const realHazards = (payload.hazard_reports || []).map(toHazardRecord(projectId))
+  const realPatrols = (payload.patrol_records || []).map(toPatrolRecord(projectId))
+  const realWorkPermits = (payload.work_permits || []).map(toWorkPermitRecord(projectId))
+  const realTrainings = (payload.training_exam_records || []).map(toTrainingRecord(projectId))
   const realCompanies = baseCompanies
   const warnings = normalizeWarnings(payload.warnings)
 
@@ -388,13 +436,15 @@ const fetchDashboardPayload = async (url: string) => {
   return payload
 }
 
-export const fetchGovPingxiangDashboard = async () => {
+export const fetchGovPingxiangDashboard = async (
+  endpoint = '/api/gov/pingxiang/dashboard',
+) => {
   let payload
   try {
-    payload = await fetchDashboardPayload('/api/gov/pingxiang/dashboard')
+    payload = await fetchDashboardPayload(endpoint)
   } catch (error) {
     if (!import.meta.env.DEV) throw error
-    payload = await fetchDashboardPayload('http://127.0.0.1:8787/api/gov/pingxiang/dashboard')
+    payload = await fetchDashboardPayload(`http://127.0.0.1:8787${endpoint}`)
   }
   return adaptGovDashboardResponse(payload)
 }

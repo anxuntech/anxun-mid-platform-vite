@@ -1,4 +1,4 @@
-export type PingxiangProjectId = 'pingxiang'
+export type PingxiangProjectId = string
 export type PingxiangRole = 'gov_viewer'
 
 export type BaseDemoRecord = {

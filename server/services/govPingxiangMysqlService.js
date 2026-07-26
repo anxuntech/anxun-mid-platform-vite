@@ -1,7 +1,9 @@
 import { getMysqlPool } from '../db/mysql.js'
 
-const sourceEnvironment = () => {
-  const value = String(process.env.PINGXIANG_SOURCE_ENVIRONMENT || 'real').toLowerCase()
+const sourceEnvironment = requestedEnvironment => {
+  const value = String(
+    requestedEnvironment || process.env.PINGXIANG_SOURCE_ENVIRONMENT || 'real',
+  ).toLowerCase()
   return ['test', 'real'].includes(value) ? value : 'real'
 }
 
@@ -48,9 +50,25 @@ const attachmentMapFor = rows => {
   return result
 }
 
-export const buildPingxiangMysqlDashboardData = async ({ projectId = 'pingxiang' } = {}) => {
+export const buildPingxiangMysqlDashboardData = async ({
+  projectId = 'pingxiang',
+  requestedEnvironment,
+} = {}) => {
   const pool = getMysqlPool()
-  const environment = sourceEnvironment()
+  const environment = sourceEnvironment(requestedEnvironment)
+  const [projectRows] = await pool.execute(
+    `SELECT p.project_id, p.project_name, p.project_slug,
+            c.county_id, c.county_name, c.county_slug
+       FROM projects p
+       JOIN counties c ON c.county_id = p.county_id
+      WHERE p.project_id = ?
+        AND p.status = 'active'
+        AND c.status = 'active'
+      LIMIT 1`,
+    [projectId],
+  )
+  const project = projectRows[0]
+  if (!project) throw new Error('project-not-found')
   const [companies] = await pool.execute(
     `SELECT DISTINCT
             c.company_id, c.company_name, c.project_id, c.industry, c.address,
@@ -259,7 +277,11 @@ export const buildPingxiangMysqlDashboardData = async ({ projectId = 'pingxiang'
 
   return {
     project_id: projectId,
-    county_name: '平乡县',
+    project_name: project.project_name,
+    project_slug: project.project_slug,
+    county_id: project.county_id,
+    county_name: project.county_name,
+    county_slug: project.county_slug,
     source: 'mysql',
     source_environment: environment,
     demo_data: false,
@@ -275,7 +297,7 @@ export const buildPingxiangMysqlDashboardData = async ({ projectId = 'pingxiang'
     },
     companies: companies.map(company => ({
       project_id: company.project_id,
-      county_name: '平乡县',
+      county_name: project.county_name,
       company_id: company.company_id,
       company_name: company.company_name,
       industry: company.industry || '',

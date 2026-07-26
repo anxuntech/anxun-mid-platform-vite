@@ -6,6 +6,8 @@ import {
 } from './caoliaoRoutes.js'
 import { handleGovPingxiangRoute, isGovPingxiangRoute } from './govPingxiangRoutes.js'
 import { handleAuthRoute, isAuthRoute } from './authRoutes.js'
+import { handleAiAssistantRoute, matchAiAssistantRoute } from './aiAssistantRoutes.js'
+import { handleGovProjectRoute, matchGovProjectRoute } from './govProjectRoutes.js'
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -16,6 +18,18 @@ const sendJson = (response, statusCode, payload) => {
 }
 
 export const routeRequest = async (request, response) => {
+  const aiAssistantRoute = matchAiAssistantRoute(request)
+  if (aiAssistantRoute) {
+    await handleAiAssistantRoute(request, response, aiAssistantRoute)
+    return
+  }
+
+  const govProjectRoute = matchGovProjectRoute(request)
+  if (govProjectRoute) {
+    await handleGovProjectRoute(request, response, govProjectRoute)
+    return
+  }
+
   if (isAuthRoute(request)) {
     await handleAuthRoute(request, response)
     return

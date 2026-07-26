@@ -25,5 +25,7 @@ server.listen(port, '0.0.0.0', () => {
   console.log('[server] route registered: GET /api/caoliao/service-records')
   console.log('[server] protected routes registered: /api/auth/*')
   console.log('[server] protected route registered: GET /api/gov/pingxiang/dashboard')
+  console.log('[server] protected AI route registered: POST /api/gov/projects/:projectId/assistant/query')
+  console.log('[server] protected project routes registered: /api/gov/projects/:projectId/*')
   console.log(`[server] webhook log file: ${getWebhookLogFile()}`)
 })
