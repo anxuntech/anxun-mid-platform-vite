@@ -50,6 +50,7 @@ module.exports = {
         P3_AI_ASSISTANT_ENABLED: process.env.P3_AI_ASSISTANT_ENABLED || 'false',
         P3_AI_ADMIN_ONLY: process.env.P3_AI_ADMIN_ONLY || 'true',
         P3_AI_SOURCE_ENVIRONMENT: process.env.P3_AI_SOURCE_ENVIRONMENT || 'test',
+        P3_ADMIN_TEST_DATA_PREVIEW: process.env.P3_ADMIN_TEST_DATA_PREVIEW || 'false',
         P3_AI_DAILY_LIMIT: process.env.P3_AI_DAILY_LIMIT || '20',
         P3_AI_RATE_LIMIT_PER_MINUTE: process.env.P3_AI_RATE_LIMIT_PER_MINUTE || '20',
         P3_AI_TIMEOUT_MS: process.env.P3_AI_TIMEOUT_MS || '12000',

@@ -94,7 +94,9 @@ test('AI and generic project routes extract only path-scoped project IDs', () =>
 test('DeepSeek key is referenced only as a server environment variable', async () => {
   const source = await readFile(path.join(projectRoot, 'server/services/deepseekIntentService.js'), 'utf8')
   const frontend = await readFile(path.join(projectRoot, 'src/features/pingxiang-gov-v2/DataAssistant.tsx'), 'utf8')
+  const ecosystem = await readFile(path.join(projectRoot, 'ecosystem.config.cjs'), 'utf8')
   assert.match(source, /process\.env\.DEEPSEEK_API_KEY/)
+  assert.match(ecosystem, /P3_ADMIN_TEST_DATA_PREVIEW:\s*process\.env\.P3_ADMIN_TEST_DATA_PREVIEW/)
   assert.doesNotMatch(source, /sk-[a-z0-9]/i)
   assert.doesNotMatch(frontend, /DEEPSEEK_API_KEY|api\.deepseek\.com|sk-[a-z0-9]/i)
 })
