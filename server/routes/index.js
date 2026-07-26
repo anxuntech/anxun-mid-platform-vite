@@ -5,6 +5,7 @@ import {
   isCaoliaoWebhookRoute,
 } from './caoliaoRoutes.js'
 import { handleGovPingxiangRoute, isGovPingxiangRoute } from './govPingxiangRoutes.js'
+import { handleAuthRoute, isAuthRoute } from './authRoutes.js'
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -15,6 +16,11 @@ const sendJson = (response, statusCode, payload) => {
 }
 
 export const routeRequest = async (request, response) => {
+  if (isAuthRoute(request)) {
+    await handleAuthRoute(request, response)
+    return
+  }
+
   if (isCaoliaoWebhookRoute(request)) {
     await handleCaoliaoWebhookRoute(request, response)
     return

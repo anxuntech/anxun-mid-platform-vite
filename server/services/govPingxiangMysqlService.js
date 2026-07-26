@@ -1,7 +1,5 @@
 import { getMysqlPool } from '../db/mysql.js'
 
-const projectId = 'pingxiang'
-
 const sourceEnvironment = () => {
   const value = String(process.env.PINGXIANG_SOURCE_ENVIRONMENT || 'real').toLowerCase()
   return ['test', 'real'].includes(value) ? value : 'real'
@@ -50,7 +48,7 @@ const attachmentMapFor = rows => {
   return result
 }
 
-export const buildPingxiangMysqlDashboardData = async () => {
+export const buildPingxiangMysqlDashboardData = async ({ projectId = 'pingxiang' } = {}) => {
   const pool = getMysqlPool()
   const environment = sourceEnvironment()
   const [companies] = await pool.execute(

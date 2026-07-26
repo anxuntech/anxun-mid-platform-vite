@@ -957,6 +957,22 @@
   gap: 13px;
 }
 
+.pxv2-auth-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 190px;
+  color: rgba(255, 255, 255, .9);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pxv2-auth-user span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pxv2-env-badge {
   display: inline-flex;
   align-items: center;
@@ -1778,6 +1794,10 @@
 
   .pxv2-env-badge {
     padding: 6px 8px;
+  }
+
+  .pxv2-auth-user {
+    display: none;
   }
 
   .pxv2-environment {

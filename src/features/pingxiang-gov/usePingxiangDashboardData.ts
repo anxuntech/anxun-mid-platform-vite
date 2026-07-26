@@ -103,8 +103,9 @@ const makeCompanyRuntime = (data: DashboardViewData, company: PilotCompany): Com
   }
 }
 
-export const usePingxiangDashboardData = () => {
+export const usePingxiangDashboardData = ({ forcedMode }: { forcedMode?: PingxiangDataMode } = {}) => {
   const [mode, setModeState] = useState<PingxiangDataMode>(() => {
+    if (forcedMode) return forcedMode
     try {
       const requestedMode = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('data') : null
       if (requestedMode === 'demo') {
@@ -150,7 +151,12 @@ export const usePingxiangDashboardData = () => {
     }
   }, [mode])
 
+  useEffect(() => {
+    if (forcedMode) setModeState(forcedMode)
+  }, [forcedMode])
+
   const setMode = (nextMode: PingxiangDataMode) => {
+    if (forcedMode) return
     setModeState(nextMode)
     try {
       if (nextMode === 'demo') sessionStorage.setItem(storageKey, 'demo')

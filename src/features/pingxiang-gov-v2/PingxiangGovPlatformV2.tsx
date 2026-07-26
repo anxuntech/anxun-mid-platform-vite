@@ -12,12 +12,15 @@ import {
   HelpCircle,
   Landmark,
   LayoutDashboard,
+  LogOut,
   SearchCheck,
   ShieldCheck,
+  UserRound,
 } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { usePingxiangDashboardData } from '../pingxiang-gov/usePingxiangDashboardData'
+import { useState, type MouseEvent } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { usePingxiangDashboardData, type PingxiangDataMode } from '../pingxiang-gov/usePingxiangDashboardData'
+import type { AuthSession } from '../../auth'
 import PingxiangGovOverviewV2 from './PingxiangGovOverviewV2'
 import './PingxiangGovOverviewV2.css'
 import {
@@ -48,14 +51,26 @@ const navItems = [
 
 const routeIsActive = (pathname: string, href: string, exact?: boolean) => exact ? pathname === href || pathname === `${href}/` : pathname.startsWith(href)
 
-export default function PingxiangGovPlatformV2() {
+export default function PingxiangGovPlatformV2({
+  forcedMode = 'demo',
+  basePath = '/gov/pingxiang',
+  authSession,
+  onLogout,
+}: {
+  forcedMode?: PingxiangDataMode
+  basePath?: '/gov/pingxiang' | '/gov/pingxiang-demo'
+  authSession?: AuthSession
+  onLogout?: () => void | Promise<void>
+}) {
   const location = useLocation()
-  const state = usePingxiangDashboardData()
+  const navigate = useNavigate()
+  const state = usePingxiangDashboardData({ forcedMode })
   const [showDataHelp, setShowDataHelp] = useState(false)
   const available = isDataAvailable(state)
-  const companyDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/(?:companies|company)\/([^/]+)\/?$/)
-  const recordDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/(hazards|inspections|patrols|work-permits|trainings|training)\/([^/]+)\/?$/)
-  const reportDetailMatch = location.pathname.match(/^\/gov\/pingxiang\/reports\/([^/]+)\/?$/)
+  const canonicalPathname = location.pathname.replace(basePath, '/gov/pingxiang')
+  const companyDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/(?:companies|company)\/([^/]+)\/?$/)
+  const recordDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/(hazards|inspections|patrols|work-permits|trainings|training)\/([^/]+)\/?$/)
+  const reportDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/reports\/([^/]+)\/?$/)
   const sourceLabel = state.mode === 'demo'
     ? '内部演示数据'
     : state.status === 'ready'
@@ -80,16 +95,26 @@ export default function PingxiangGovPlatformV2() {
   }
   else if (reportDetailMatch) page = <ReportPreviewPageV2 state={state} reportId={decodeURIComponent(reportDetailMatch[1])} />
   else if (companyDetailMatch) page = <CompanyDetailPageV2 state={state} companyId={decodeURIComponent(companyDetailMatch[1])} />
-  else if (location.pathname.startsWith('/gov/pingxiang/companies')) page = <CompaniesPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/hazards')) page = <HazardsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/inspections') || location.pathname.startsWith('/gov/pingxiang/patrols')) page = <PatrolsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/work-permits')) page = <WorkPermitsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/trainings') || location.pathname.startsWith('/gov/pingxiang/training')) page = <TrainingPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/reports')) page = <ReportsPageV2 state={state} />
-  else if (location.pathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/companies')) page = <CompaniesPageV2 state={state} />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/hazards')) page = <HazardsPageV2 state={state} />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/inspections') || canonicalPathname.startsWith('/gov/pingxiang/patrols')) page = <PatrolsPageV2 state={state} />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/work-permits')) page = <WorkPermitsPageV2 state={state} />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/trainings') || canonicalPathname.startsWith('/gov/pingxiang/training')) page = <TrainingPageV2 state={state} />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/reports')) page = <ReportsPageV2 state={state} />
+  else if (canonicalPathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 state={state} />
+
+  const keepDemoNavigation = (event: MouseEvent<HTMLDivElement>) => {
+    if (basePath !== '/gov/pingxiang-demo') return
+    const anchor = (event.target as HTMLElement).closest('a')
+    const href = anchor?.getAttribute('href') || ''
+    if (href === basePath || href.startsWith(`${basePath}/`)) return
+    if (!href.startsWith('/gov/pingxiang')) return
+    event.preventDefault()
+    navigate(href.replace(/^\/gov\/pingxiang/, basePath))
+  }
 
   return (
-    <div className="pxv2-shell">
+    <div className="pxv2-shell" onClickCapture={keepDemoNavigation}>
       <header className="pxv2-header">
         <Link className="pxv2-brand" to="/gov/pingxiang" aria-label="返回运行总览">
           <span className="pxv2-brand-mark"><Landmark size={29} /></span>
@@ -102,8 +127,10 @@ export default function PingxiangGovPlatformV2() {
           <div><CircleCheckBig size={16} /><span>运行状态</span><strong>{environmentLabel}</strong></div>
         </div>
         <div className="pxv2-header-actions">
+          {authSession && <span className="pxv2-auth-user"><UserRound size={16} /><span>{authSession.organizationName}</span></span>}
           <span className={`pxv2-env-badge ${state.mode === 'demo' ? 'demo' : state.status === 'error' ? 'error' : 'real'}`}><ShieldCheck size={15} />{environmentLabel}</span>
           <button className="pxv2-data-help" type="button" onClick={() => setShowDataHelp(value => !value)} aria-expanded={showDataHelp}><HelpCircle size={18} /><span>数据说明</span></button>
+          {authSession && onLogout && <button className="pxv2-data-help" type="button" onClick={() => onLogout()}><LogOut size={17} /><span>退出登录</span></button>}
           {showDataHelp && <div className="pxv2-data-popover"><strong>数据口径说明</strong><p>{dataSourceText(state)}</p><p>页面仅展示已成功归集的数据；缺失或归集失败时统一显示“暂无数据”。</p></div>}
         </div>
       </header>
@@ -112,7 +139,7 @@ export default function PingxiangGovPlatformV2() {
         <nav aria-label="平乡县政府端功能导航">
           {navItems.map(item => {
             const Icon = item.icon
-            const active = routeIsActive(location.pathname, item.href, item.exact) || (item.href === '/gov/pingxiang/companies' && Boolean(companyDetailMatch))
+            const active = routeIsActive(canonicalPathname, item.href, item.exact) || (item.href === '/gov/pingxiang/companies' && Boolean(companyDetailMatch))
             return <Link key={item.href} className={active ? 'active' : ''} to={item.href}><Icon size={19} /><span>{item.label}</span>{active && <ChevronRight className="pxv2-active-arrow" size={16} />}</Link>
           })}
         </nav>

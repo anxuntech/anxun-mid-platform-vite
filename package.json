@@ -21,17 +21,20 @@
     "db:replay": "node server/scripts/replay-webhook-event.js",
     "db:verify:replay": "node server/scripts/verify-replay-flow.js",
     "db:verify:four-types": "node server/scripts/verify-four-type-flow.js",
-    "db:event:check": "node server/scripts/check-webhook-event.js"
+    "db:event:check": "node server/scripts/check-webhook-event.js",
+    "auth:user": "node server/scripts/manage-auth-user.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "lucide-react": "^0.511.0",
     "mysql2": "^3.14.4",
+    "pdfkit": "^0.17.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.2",
+    "@playwright/test": "^1.55.1",
     "@types/estree": "^1.0.8",
     "@types/prop-types": "^15.7.15",
     "@types/react": "^18.3.12",

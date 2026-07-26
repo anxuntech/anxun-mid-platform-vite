@@ -73,11 +73,14 @@ export default function PingxiangGovOverviewV2({ state }: { state: PingxiangData
     { label: '培训参与人次', value: formatDisplayValue(available, trainingParticipantCount(state.data)), unit: '人次', note: '查看培训与考试明细', icon: UsersRound, tone: 'violet', href: '/gov/pingxiang/trainings?source=首页指标' },
   ]
   const previewCompany = params.get('previewCompany')
+  const routeBase = location.pathname.startsWith('/gov/pingxiang-demo')
+    ? '/gov/pingxiang-demo'
+    : '/gov/pingxiang'
   const chartHref = (base: string, period: string, series?: string) => {
     const updates = new URLSearchParams({ month: period, source: '首页趋势图' })
     if (series?.includes('销号')) updates.set('status', '已销号')
     if (series?.includes('问题')) updates.set('result', '存在异常')
-    navigate(`${base}?${updates.toString()}`)
+    navigate(`${base.replace(/^\/gov\/pingxiang/, routeBase)}?${updates.toString()}`)
   }
 
   return (

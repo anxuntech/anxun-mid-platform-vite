@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { authenticatedFetch } from '../../auth'
 import type { HazardRecord, PatrolRecord, TrainingRecord, WorkPermitRecord } from '../pingxiang-gov/types'
 import {
   buildQueryHref,
@@ -189,6 +190,10 @@ export function CompaniesPageV2({ state }: { state: PingxiangDataState }) {
 export function CompanyDetailPageV2({ state, companyId }: { state: PingxiangDataState; companyId: string }) {
   const item = state.companyMap.get(companyId)
   const navigate = useNavigate()
+  const location = useLocation()
+  const routeBase = location.pathname.startsWith('/gov/pingxiang-demo')
+    ? '/gov/pingxiang-demo'
+    : '/gov/pingxiang'
   if (!item) return <div className="pxv2-page-stack"><PageTitle eyebrow="企业运行档案" title="企业详情" description="查看企业四项功能运行记录。" /><EmptyVisual title="暂无企业数据" description="请返回企业清单重新选择。" action={<Link to="/gov/pingxiang/companies">返回企业清单</Link>} /></div>
   const participants = item.trainings.flatMap(record => record.participants || [])
   const metrics: VisualMetric[] = [
@@ -208,7 +213,7 @@ export function CompanyDetailPageV2({ state, companyId }: { state: PingxiangData
     <PageTitle eyebrow="企业完整运行档案" title={item.company.company_name} description="先看企业运行状态，再追溯四项业务过程记录。" action={<Link className="pxv2-secondary-button" to="/gov/pingxiang/companies">返回企业清单</Link>} />
     <Panel title="企业概览"><div className="pxv2-company-profile"><div className="pxv21-company-profile-head"><span><Building2 size={22} /></span><div><small>企业基础信息</small><h2>{item.company.company_name}</h2><p>{item.company.industry} · {item.company.address}</p></div></div><InfoGrid items={[{ label: '运行状态', value: <StatusPill value={item.runningStatus} /> }, { label: '最近有效记录', value: item.latestUpdate }, { label: '联系人', value: item.company.contact_name }, { label: '联系电话', value: item.company.contact_phone }]} /></div></Panel>
     <SummaryMetrics metrics={metrics} />
-    <Panel title="近6个月四项业务趋势" note="悬浮查看同月全部数据，点击进入对应月份业务清单"><InteractiveTrendChart labels={demoPeriods.map(monthLabel)} periods={demoPeriods} series={series} maxValue={Math.max(4, ...series.flatMap(value => value.values))} onPointClick={(period, label) => navigate(`${label === '隐患' ? '/gov/pingxiang/hazards' : label === '巡检' ? '/gov/pingxiang/inspections' : label === '作业票' ? '/gov/pingxiang/work-permits' : '/gov/pingxiang/trainings'}?company=${companyId}&month=${period}&source=企业详情趋势`)} /></Panel>
+    <Panel title="近6个月四项业务趋势" note="悬浮查看同月全部数据，点击进入对应月份业务清单"><InteractiveTrendChart labels={demoPeriods.map(monthLabel)} periods={demoPeriods} series={series} maxValue={Math.max(4, ...series.flatMap(value => value.values))} onPointClick={(period, label) => navigate(`${routeBase}${label === '隐患' ? '/hazards' : label === '巡检' ? '/inspections' : label === '作业票' ? '/work-permits' : '/trainings'}?company=${companyId}&month=${period}&source=企业详情趋势`)} /></Panel>
     <Panel title="最近运行记录" note="点击记录进入完整业务详情"><div className="pxv21-recent-list is-table">{recent.map(record => <Link key={`${record.kind}-${record.id}`} to={record.href}><StatusPill value={record.kind} /><span><strong>{record.title}</strong><small>{record.time} · {record.person}</small></span><StatusPill value={record.status} /></Link>)}</div></Panel>
     <Panel title="数据说明"><ScopeNote>当前为演示环境；数据来源、更新时间和统计结果均由同一套前端演示数据模型派生，不作为执法认定依据。</ScopeNote></Panel>
   </div>
@@ -329,7 +334,7 @@ const reportHtml = (state: PingxiangDataState, reportName: string) => {
 }
 
 export function ReportsPageV2({ state }: { state: PingxiangDataState }) {
-  return <div className="pxv2-page-stack"><PageTitle eyebrow="项目运行成果输出" title="阶段报告" description="预览项目阶段结论，并下载可阅读的演示报告文件。" /><SummaryMetrics metrics={[
+  return <div className="pxv2-page-stack"><PageTitle eyebrow="项目运行成果输出" title="阶段报告" description={state.mode === 'demo' ? '预览项目阶段结论，并下载可阅读的演示报告文件。' : '查看项目阶段结论，并按当前账号权限下载汇总文件。'} /><SummaryMetrics metrics={[
     { label: '试点企业', value: state.companies.length, unit: '家', note: '纳入报告范围', icon: Building2, tone: 'blue' },
     { label: '隐患记录', value: state.data.hazardRecords.length, unit: '条', note: '统一数据模型', icon: AlertTriangle, tone: 'orange' },
     { label: '巡检记录', value: state.data.patrolRecords.length, unit: '条', note: '统一数据模型', icon: SearchCheck, tone: 'green' },
@@ -341,19 +346,35 @@ export function ReportPreviewPageV2({ state, reportId }: { state: PingxiangDataS
   const report = reports.find(item => item.id === reportId) || reports[0]
   const openHazards = state.data.hazardRecords.filter(item => !isClosedHazard(item.status)).length
   const activeCompanies = state.companies.filter(item => item.runningStatus === '近期有有效记录').length
-  const download = () => {
-    const blob = new Blob([reportHtml(state, report.name)], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
+  const saveDownload = async (response: Response, fileName: string) => {
+    if (!response.ok) throw new Error('文件下载失败')
+    const url = URL.createObjectURL(await response.blob())
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `平乡县-${report.name}-演示版.html`
+    anchor.download = fileName
     anchor.click()
     URL.revokeObjectURL(url)
   }
+  const download = async () => {
+    const response = state.mode === 'real'
+      ? await authenticatedFetch('/api/gov/pingxiang/exports/report-pdf', { method: 'POST' })
+      : null
+    if (response) {
+      await saveDownload(response, '平乡县企业现场安全管理阶段报告.pdf')
+      return
+    }
+    const demoResponse = new Response(
+      new Blob([reportHtml(state, report.name)], { type: 'text/html;charset=utf-8' }),
+    )
+    await saveDownload(demoResponse, `平乡县-${report.name}-演示版.html`)
+  }
+  const downloadSummary = (type: 'summary' | 'business-summary', fileName: string) =>
+    authenticatedFetch(`/api/gov/pingxiang/exports/${type}`, { method: 'POST' })
+      .then(response => saveDownload(response, fileName))
   const statusSeries: VisualChartSeries[] = [{ label: '企业数', color: '#1677ff', values: [activeCompanies, state.companies.length - activeCompanies] }]
-  return <div className="pxv2-page-stack pxv21-report-preview"><div className="pxv21-report-cover"><span>演示数据，仅用于功能展示</span><Landmark size={48} /><p>平乡县企业现场安全管理运行平台</p><h1>{report.name}</h1><strong>{report.period}</strong><div><Link to="/gov/pingxiang/reports">返回报告清单</Link><button type="button" onClick={download}><Download size={17} />下载演示报告</button></div></div><Panel title="总体指标"><div className="pxv21-report-metrics"><span>试点企业<strong>{state.companies.length}家</strong></span><span>有效运行企业<strong>{activeCompanies}家</strong></span><span>隐患记录<strong>{state.data.hazardRecords.length}条</strong></span><span>未闭环隐患<strong>{openHazards}条</strong></span><span>巡检记录<strong>{state.data.patrolRecords.length}条</strong></span><span>培训参与<strong>{trainingParticipantCount(state.data)}人次</strong></span></div></Panel><section className="pxv21-report-columns"><Panel title="企业运行分布"><LineChartSvg labels={['有效运行', '需关注']} series={statusSeries} maxValue={Math.max(1, state.companies.length)} /></Panel><Panel title="四项业务统计"><div className="pxv21-report-business"><span>隐患整改<b>{state.data.hazardRecords.length}</b></span><span>巡检点检<b>{state.data.patrolRecords.length}</b></span><span>作业票<b>{state.data.workPermitRecords.length}</b></span><span>培训活动<b>{state.data.trainingRecords.length}</b></span></div></Panel></section><Panel title="重点企业清单"><DataTable headers={['企业名称', '运行状态', '未闭环隐患', '问题巡检', '最近有效记录']} minWidth={900}>{state.companies.filter(item => item.openHazards || item.abnormalPatrols || item.runningStatus !== '近期有有效记录').slice(0, 10).map(item => <tr key={item.company.company_id}><td>{item.company.company_name}</td><td><StatusPill value={item.runningStatus} /></td><td>{item.openHazards}</td><td>{item.abnormalPatrols}</td><td>{item.latestUpdate}</td></tr>)}</DataTable></Panel><Panel title="数据口径说明"><ScopeNote>报告、首页、列表与详情使用同一套前端演示数据模型；演示数据仅用于功能展示，不作为执法认定依据。</ScopeNote></Panel></div>
+  return <div className="pxv2-page-stack pxv21-report-preview"><div className="pxv21-report-cover"><span>{state.mode === 'demo' ? '演示数据，仅用于功能展示' : '正式项目数据，仅供项目工作使用'}</span><Landmark size={48} /><p>平乡县企业现场安全管理运行平台</p><h1>{report.name}</h1><strong>{report.period}</strong><div><Link to="/gov/pingxiang/reports">返回报告清单</Link><button type="button" onClick={() => void download().catch(() => window.alert('报告下载失败，请稍后重试'))}><Download size={17} />{state.mode === 'demo' ? '下载演示报告' : '下载阶段报告'}</button>{state.mode === 'real' ? <><button type="button" onClick={() => void downloadSummary('summary', '平乡县企业运行汇总.xls').catch(() => window.alert('企业汇总下载失败，请稍后重试'))}><Download size={17} />企业运行汇总</button><button type="button" onClick={() => void downloadSummary('business-summary', '平乡县四项业务汇总.xls').catch(() => window.alert('业务汇总下载失败，请稍后重试'))}><Download size={17} />四项业务汇总</button></> : null}</div></div><Panel title="总体指标"><div className="pxv21-report-metrics"><span>试点企业<strong>{state.companies.length}家</strong></span><span>有效运行企业<strong>{activeCompanies}家</strong></span><span>隐患记录<strong>{state.data.hazardRecords.length}条</strong></span><span>未闭环隐患<strong>{openHazards}条</strong></span><span>巡检记录<strong>{state.data.patrolRecords.length}条</strong></span><span>培训参与<strong>{trainingParticipantCount(state.data)}人次</strong></span></div></Panel><section className="pxv21-report-columns"><Panel title="企业运行分布"><LineChartSvg labels={['有效运行', '需关注']} series={statusSeries} maxValue={Math.max(1, state.companies.length)} /></Panel><Panel title="四项业务统计"><div className="pxv21-report-business"><span>隐患整改<b>{state.data.hazardRecords.length}</b></span><span>巡检点检<b>{state.data.patrolRecords.length}</b></span><span>作业票<b>{state.data.workPermitRecords.length}</b></span><span>培训活动<b>{state.data.trainingRecords.length}</b></span></div></Panel></section><Panel title="重点企业清单"><DataTable headers={['企业名称', '运行状态', '未闭环隐患', '问题巡检', '最近有效记录']} minWidth={900}>{state.companies.filter(item => item.openHazards || item.abnormalPatrols || item.runningStatus !== '近期有有效记录').slice(0, 10).map(item => <tr key={item.company.company_id}><td>{item.company.company_name}</td><td><StatusPill value={item.runningStatus} /></td><td>{item.openHazards}</td><td>{item.abnormalPatrols}</td><td>{item.latestUpdate}</td></tr>)}</DataTable></Panel><Panel title="数据口径说明"><ScopeNote>{state.mode === 'demo' ? '报告、首页、列表与详情使用同一套前端演示数据模型；演示数据仅用于功能展示，不作为执法认定依据。' : '报告、首页、列表与详情均使用当前账号授权范围内的项目数据；导出行为将记录账号、机构、时间和数据类型。'}</ScopeNote></Panel></div>
 }
 
-export function ProjectAboutPageV2() {
-  return <div className="pxv2-page-stack"><PageTitle eyebrow="试点项目说明" title="项目介绍" description="平乡县企业现场安全管理四项闭环数字化试点项目。" /><section className="pxv2-about-grid"><Panel title="项目背景"><p className="pxv2-prose">围绕企业隐患整改、巡检点检、作业票和培训考试四项现场安全管理动作，形成可归集、可追溯、可复盘的县域试点运行视图。</p></Panel><Panel title="政府端定位"><p className="pxv2-prose">平台为政府端只读运行视图，用于了解试点项目运行情况，不替代企业安全管理，也不作为执法认定依据。</p></Panel><Panel title="演示环境"><p className="pxv2-prose">当前仅使用内部演示数据，所有页面固定显示“演示环境”，不包含正式账号、数据库、人工智能或政府接口能力。</p></Panel></section><Panel title="四项功能与数据流向"><div className="pxv21-project-flow"><Link to="/gov/pingxiang/hazards"><AlertTriangle />隐患整改</Link><Link to="/gov/pingxiang/inspections"><SearchCheck />巡检点检</Link><Link to="/gov/pingxiang/work-permits"><TicketCheck />作业票管理</Link><Link to="/gov/pingxiang/trainings"><GraduationCap />培训考试</Link><span>企业端形成记录</span><span>项目归集形成运行视图</span><span>政府端只读查看与追溯</span></div></Panel><Panel title="快捷入口"><div className="pxv21-action-grid"><Link to="/gov/pingxiang"><Landmark />返回运行总览</Link><Link to="/gov/pingxiang/companies"><Building2 />查看企业清单</Link><Link to="/gov/pingxiang/reports"><FileText />查看阶段报告</Link></div></Panel></div>
+export function ProjectAboutPageV2({ state }: { state: PingxiangDataState }) {
+  return <div className="pxv2-page-stack"><PageTitle eyebrow="试点项目说明" title="项目介绍" description="平乡县企业现场安全管理四项闭环数字化试点项目。" /><section className="pxv2-about-grid"><Panel title="项目背景"><p className="pxv2-prose">围绕企业隐患整改、巡检点检、作业票和培训考试四项现场安全管理动作，形成可归集、可追溯、可复盘的县域试点运行视图。</p></Panel><Panel title="政府端定位"><p className="pxv2-prose">平台为政府端只读运行视图，用于了解试点项目运行情况，不替代企业安全管理，也不作为执法认定依据。</p></Panel><Panel title={state.mode === 'demo' ? '演示环境' : '正式环境'}><p className="pxv2-prose">{state.mode === 'demo' ? '当前仅使用内部演示数据，所有页面固定显示“演示环境”，不包含正式企业运行数据。' : '当前页面仅展示登录账号已获授权的平乡项目数据，所有访问和下载均由后端校验并留痕。'}</p></Panel></section><Panel title="四项功能与数据流向"><div className="pxv21-project-flow"><Link to="/gov/pingxiang/hazards"><AlertTriangle />隐患整改</Link><Link to="/gov/pingxiang/inspections"><SearchCheck />巡检点检</Link><Link to="/gov/pingxiang/work-permits"><TicketCheck />作业票管理</Link><Link to="/gov/pingxiang/trainings"><GraduationCap />培训考试</Link><span>企业端形成记录</span><span>项目归集形成运行视图</span><span>政府端只读查看与追溯</span></div></Panel><Panel title="快捷入口"><div className="pxv21-action-grid"><Link to="/gov/pingxiang"><Landmark />返回运行总览</Link><Link to="/gov/pingxiang/companies"><Building2 />查看企业清单</Link><Link to="/gov/pingxiang/reports"><FileText />查看阶段报告</Link></div></Panel></div>
 }

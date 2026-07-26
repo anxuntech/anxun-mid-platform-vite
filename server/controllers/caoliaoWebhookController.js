@@ -1,5 +1,6 @@
 import { verifyWebhookRequest } from '../security/requestAuth.js'
 import { processCaoliaoWebhook } from '../services/caoliaoWebhookService.js'
+import { consumeRequestRateLimit } from '../security/rateLimit.js'
 
 const readRequestBody = request =>
   new Promise((resolve, reject) => {
@@ -36,6 +37,21 @@ const sendJson = (response, statusCode, payload) => {
 export const handleCaoliaoWebhook = async (request, response) => {
   if (request.method !== 'POST') {
     sendJson(response, 405, { success: false, message: 'method not allowed' })
+    return
+  }
+
+  const rateLimit = consumeRequestRateLimit(request, 'caoliao-webhook', {
+    limit: process.env.WEBHOOK_RATE_LIMIT_PER_MINUTE || 300,
+  })
+  if (!rateLimit.allowed) {
+    request.resume()
+    await processCaoliaoWebhook({
+      headers: request.headers,
+      rawBody: '',
+      parsedBody: {},
+      auth: { accepted: false, reason: 'webhook-rate-limited' },
+    })
+    sendJson(response, 200, { success: true, message: 'received' })
     return
   }
 

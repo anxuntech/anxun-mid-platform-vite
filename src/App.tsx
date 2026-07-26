@@ -2,7 +2,7 @@
 import type { ChangeEvent, ReactNode } from 'react'
 import { useEffect } from 'react'
 import { useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   BarChart3,
@@ -34,7 +34,17 @@ import {
   Wrench,
 } from 'lucide-react'
 import { buildAppHref, parseAppLocation } from './navigation'
-import { clearSession, findAccount, persistSession, restoreSession, roleLabelMap, roleNavMap, rolePerspectiveMap, type AuthPage, type AuthRole, type AuthSession } from './auth'
+import {
+  clearSession,
+  loginAccount,
+  pagesForSession,
+  perspectiveForSession,
+  restoreSession,
+  roleLabelForSession,
+  type AuthPage,
+  type AuthRole,
+  type AuthSession,
+} from './auth'
 import PingxiangGovPlatformV2 from './features/pingxiang-gov-v2/PingxiangGovPlatformV2'
 
 type Perspective = '企业' | '安全服务商' | '保险平台' | '应急局'
@@ -42,6 +52,22 @@ type PageKey = 'login' | 'pingxiangGov' | 'dashboard' | 'enterprises' | 'detail'
 type Level = 'A' | 'B' | 'C' | 'D'
 type Risk = '高' | '中' | '低'
 type HazardStatus = '待整改' | '整改中' | '待复查' | '已闭环'
+
+const safePingxiangReturnTo = (value: string | null) => {
+  if (!value || !value.startsWith('/') || value.includes('\\') || value.startsWith('//')) return ''
+  try {
+    const decoded = decodeURIComponent(value)
+    if (decoded.includes('\\') || decoded.startsWith('//')) return ''
+    const parsed = new URL(value, window.location.origin)
+    const isSameOrigin = parsed.origin === window.location.origin
+    const isPingxiangPath =
+      parsed.pathname === '/gov/pingxiang' ||
+      parsed.pathname.startsWith('/gov/pingxiang/')
+    return isSameOrigin && isPingxiangPath ? `${parsed.pathname}${parsed.search}${parsed.hash}` : ''
+  } catch {
+    return ''
+  }
+}
 type DeviceStatus = '在线' | '离线' | '告警'
 type TaskStage = '待指派' | '待接单' | '执行中' | '待验收' | '已完成'
 type TaskPriority = '高' | '中' | '低'
@@ -562,7 +588,10 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const isMarketingSite = location.pathname === '/' || location.pathname === '/index.html'
-  const [session, setSession] = useState<AuthSession | null>(() => restoreSession())
+  const isPingxiangDemoPage = location.pathname === '/gov/pingxiang-demo' || location.pathname.startsWith('/gov/pingxiang-demo/')
+  const [session, setSession] = useState<AuthSession | null>(null)
+  const [sessionReady, setSessionReady] = useState(false)
+  const [loginPending, setLoginPending] = useState(false)
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
@@ -627,12 +656,11 @@ function App() {
   const weekStart = '2026-03-15'
   const allEnterpriseIds = useMemo(() => enterprises.map(item => item.id), [])
   const currentRole: AuthRole | null = session?.role || null
-  const perspective: Perspective = currentRole ? rolePerspectiveMap[currentRole] : '安全服务商'
-  const roleLabel = currentRole ? roleLabelMap[currentRole] : '未登录'
+  const perspective: Perspective = perspectiveForSession(session)
+  const roleLabel = roleLabelForSession(session)
   const allowedEnterpriseIds = useMemo(() => {
     if (!session) return []
-    if (session.role === 'admin' || session.role === 'insurer' || session.role === 'regulator') return allEnterpriseIds
-    return session.enterpriseIds
+    return allEnterpriseIds
   }, [allEnterpriseIds, session])
   const scopedEnterprises = useMemo(() => enterprises.filter(item => allowedEnterpriseIds.includes(item.id)), [allowedEnterpriseIds])
   const scopedEnterpriseIds = useMemo(() => new Set(scopedEnterprises.map(item => item.id)), [scopedEnterprises])
@@ -642,12 +670,31 @@ function App() {
   const scopedSnapshots = useMemo(() => snapshots.filter(item => scopedEnterpriseIds.has(item.enterpriseId)), [scopedEnterpriseIds, snapshots])
   const visibleNavItems = useMemo(() => {
     if (!session) return []
-    const allowedPages = new Set(roleNavMap[session.role])
+    const allowedPages = new Set(pagesForSession(session))
     return navItems.filter(item => allowedPages.has(item.key as AuthPage))
   }, [session])
 
   useEffect(() => {
-    if (!session) return
+    if (isMarketingSite || isPingxiangDemoPage) {
+      setSessionReady(true)
+      return
+    }
+    let active = true
+    setSessionReady(false)
+    restoreSession()
+      .then(nextSession => {
+        if (active) setSession(nextSession)
+      })
+      .finally(() => {
+        if (active) setSessionReady(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [isMarketingSite, isPingxiangDemoPage])
+
+  useEffect(() => {
+    if (!session || session.role !== 'admin') return
     let active = true
     const loadCaoliaoRecords = async () => {
       try {
@@ -1479,7 +1526,7 @@ function App() {
   const routeState = useMemo(() => parseAppLocation(location.pathname, location.search) as AppRouteState, [location.pathname, location.search])
   const isStandalonePage = isMarketingSite || routeState.page === 'pingxiangGov'
   const currentHref = `${location.pathname}${location.search}`
-  const allowedPages = useMemo(() => (session ? new Set(roleNavMap[session.role]) : new Set<PageKey>(['login'])), [session])
+  const allowedPages = useMemo(() => (session ? new Set(pagesForSession(session)) : new Set<PageKey>(['login'])), [session])
   const defaultRouteState = useMemo<AppRouteState>(() => {
     if (!session) return { page: 'login' }
     if (session.defaultPage === 'users') return { page: 'users', enterpriseId: allowedEnterpriseIds[0] || defaultEnterpriseId, selectedMonth: dashboardMonth }
@@ -1491,7 +1538,7 @@ function App() {
   const sanitizeRouteForSession = (route: AppRouteState): AppRouteState => {
     if (!session) return { page: 'login' }
     if (route.page === 'login') return defaultRouteState
-    const canAccess = allowedPages.has(route.page) || (session.role === 'regulator' && route.page === 'tasks')
+    const canAccess = allowedPages.has(route.page)
     if (!canAccess) return defaultRouteState
     const firstEnterpriseId = allowedEnterpriseIds[0] || defaultEnterpriseId
     const routeEnterpriseId = route.enterpriseId && allowedEnterpriseIds.includes(route.enterpriseId) ? route.enterpriseId : undefined
@@ -1500,22 +1547,11 @@ function App() {
     const routeSnapshotEnterpriseFilter = route.snapshotEnterpriseFilter && route.snapshotEnterpriseFilter !== 'all' && allowedEnterpriseIds.includes(route.snapshotEnterpriseFilter) ? route.snapshotEnterpriseFilter : undefined
     const routeRecordEnterpriseFilter = route.recordEnterpriseFilter && route.recordEnterpriseFilter !== 'all' && allowedEnterpriseIds.includes(route.recordEnterpriseFilter) ? route.recordEnterpriseFilter : undefined
 
-    if (session.role === 'enterprise') {
-      return {
-        ...route,
-        enterpriseId: firstEnterpriseId,
-        hazardEnterpriseId: firstEnterpriseId,
-        taskEnterpriseFilter: firstEnterpriseId,
-        snapshotEnterpriseFilter: firstEnterpriseId,
-        recordEnterpriseFilter: firstEnterpriseId,
-      }
-    }
-
     return {
       ...route,
       enterpriseId: route.page === 'detail' || route.page === 'users' ? routeEnterpriseId || firstEnterpriseId : routeEnterpriseId,
-      hazardEnterpriseId: routeHazardEnterpriseId || (route.page === 'hazards' && session.role === 'service' ? firstEnterpriseId : undefined),
-      taskEnterpriseFilter: routeTaskEnterpriseFilter || (session.role === 'service' && route.page === 'tasks' ? 'all' : route.taskEnterpriseFilter),
+      hazardEnterpriseId: routeHazardEnterpriseId,
+      taskEnterpriseFilter: routeTaskEnterpriseFilter || route.taskEnterpriseFilter,
       snapshotEnterpriseFilter: routeSnapshotEnterpriseFilter || route.snapshotEnterpriseFilter,
       recordEnterpriseFilter: routeRecordEnterpriseFilter || route.recordEnterpriseFilter,
     }
@@ -1569,21 +1605,26 @@ function App() {
     navigate(href, { replace })
   }
 
-  const handleLogin = () => {
-    const nextSession = findAccount(loginUsername.trim(), loginPassword)
-    if (!nextSession) {
-      setLoginError('账号或密码不正确，请检查后重试。')
-      return
-    }
-    persistSession(nextSession)
-    setSession(nextSession)
+  const handleLogin = async () => {
+    if (loginPending) return
+    setLoginPending(true)
     setLoginError('')
-    setLoginPassword('')
-    navigate(buildAppHref(nextSession.defaultPage === 'users' ? { page: 'users', enterpriseId: nextSession.enterpriseIds[0] || defaultEnterpriseId, selectedMonth: dashboardMonth } : nextSession.defaultPage === 'scoreTrend' ? { page: 'scoreTrend', selectedMonth: dashboardMonth, insurerAreaFilter: 'all', insurerIndustryFilter: 'all', insurerTierFilter: 'all' } : nextSession.defaultPage === 'bigscreen' ? { page: 'bigscreen', selectedMonth: dashboardMonth, regulatorAreaFilter: 'all', regulatorIndustryFilter: 'all', regulatorStatusFilter: 'all' } : { page: nextSession.defaultPage as PageKey }), { replace: true })
+    try {
+      const nextSession = await loginAccount(loginUsername.trim(), loginPassword)
+      setSession(nextSession)
+      setLoginPassword('')
+      const returnTo = safePingxiangReturnTo(new URLSearchParams(location.search).get('returnTo'))
+      const canReturnToPingxiang = Boolean(returnTo) && nextSession.projects.some(project => project.projectId === 'pingxiang')
+      navigate(canReturnToPingxiang ? returnTo : buildAppHref(nextSession.defaultPage === 'scoreTrend' ? { page: 'scoreTrend', selectedMonth: dashboardMonth, insurerAreaFilter: 'all', insurerIndustryFilter: 'all', insurerTierFilter: 'all' } : nextSession.defaultPage === 'bigscreen' ? { page: 'bigscreen', selectedMonth: dashboardMonth, regulatorAreaFilter: 'all', regulatorIndustryFilter: 'all', regulatorStatusFilter: 'all' } : { page: nextSession.defaultPage as PageKey }), { replace: true })
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : '登录服务暂不可用，请稍后重试。')
+    } finally {
+      setLoginPending(false)
+    }
   }
 
-  const handleLogout = () => {
-    clearSession()
+  const handleLogout = async () => {
+    await clearSession()
     setSession(null)
     setLoginUsername('')
     setLoginPassword('')
@@ -1593,6 +1634,7 @@ function App() {
 
   useEffect(() => {
     if (isStandalonePage) return
+    if (!sessionReady) return
     if (!session && routeState.page !== 'login') {
       navigate(buildAppHref({ page: 'login' }), { replace: true })
       return
@@ -1601,14 +1643,23 @@ function App() {
       navigate(buildAppHref(defaultRouteState), { replace: true })
       return
     }
+    if (!session && routeState.page === 'login') {
+      applyRouteState(routeState)
+      return
+    }
     const safeRoute = sanitizeRouteForSession(routeState)
-    const canonicalHref = buildAppHref(safeRoute)
+    const loginReturnTo = safeRoute.page === 'login'
+      ? safePingxiangReturnTo(new URLSearchParams(location.search).get('returnTo'))
+      : ''
+    const canonicalHref = loginReturnTo
+      ? `/platform/login?returnTo=${encodeURIComponent(loginReturnTo)}`
+      : buildAppHref(safeRoute)
     if (canonicalHref !== currentHref) {
       navigate(canonicalHref, { replace: true })
       return
     }
     applyRouteState(safeRoute)
-  }, [currentHref, defaultRouteState, isStandalonePage, navigate, routeState, session])
+  }, [currentHref, defaultRouteState, isStandalonePage, navigate, routeState, session, sessionReady])
 
   useEffect(() => {
     if (isStandalonePage) return
@@ -1621,6 +1672,7 @@ function App() {
 
   useEffect(() => {
     if (isStandalonePage) return
+    if (!session) return
     if (page !== 'tasks') return
     const nextRoute: AppRouteState = {
       page: 'tasks',
@@ -1635,10 +1687,11 @@ function App() {
       taskQuickFilter,
     }
     navigateToRoute(nextRoute, true)
-  }, [isStandalonePage, page, selectedTaskId, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
+  }, [isStandalonePage, page, selectedTaskId, session, taskListScope, taskEnterpriseFilter, taskTypeFilter, taskStatusFilter, taskPriorityFilter, taskTimeFilter, taskAssigneeFilter, taskQuickFilter])
 
   useEffect(() => {
     if (isStandalonePage) return
+    if (!session) return
     if (page !== 'detail') return
     const routeState: AppRouteState = {
       page: 'detail',
@@ -1647,10 +1700,11 @@ function App() {
       detailSnapshotMonth: detailSnapshotMonth || undefined,
     }
     navigateToRoute(routeState, true)
-  }, [detailSnapshotMonth, isStandalonePage, page, selectedEnterpriseId, selectedMonth])
+  }, [detailSnapshotMonth, isStandalonePage, page, selectedEnterpriseId, selectedMonth, session])
 
   useEffect(() => {
     if (isStandalonePage) return
+    if (!session) return
     if (page !== 'hazards') return
     navigateToRoute(
       {
@@ -1669,17 +1723,18 @@ function App() {
       },
       true,
     )
-  }, [isStandalonePage, page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter])
+  }, [isStandalonePage, page, selectedEnterpriseId, hazardEnterpriseId, hazardListScope, selectedHazardId, hazardLevelFilter, hazardStatusFilter, hazardReviewFilter, hazardOverdueFilter, hazardTimeFilter, hazardKeyword, hazardQuickFilter, session])
 
   useEffect(() => {
     if (isStandalonePage) return
+    if (!session) return
     if (page === 'scoreDetail') navigateToRoute({ page: 'scoreDetail', selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId: selectedSnapshotId || undefined }, true)
     if (page === 'scoreTrend') navigateToRoute({ page: 'scoreTrend', selectedMonth, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter }, true)
     if (page === 'devices') navigateToRoute({ page: 'devices', selectedMonth, selectedRecordId: selectedRecordId || undefined, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter }, true)
     if (page === 'users') navigateToRoute({ page: 'users', enterpriseId: selectedEnterpriseId, selectedMonth }, true)
     if (page === 'bigscreen') navigateToRoute({ page: 'bigscreen', selectedMonth, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter }, true)
     if (page === 'scoreConfig' || page === 'enterprises' || page === 'dashboard') navigateToRoute({ page }, true)
-  }, [isStandalonePage, page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter])
+  }, [isStandalonePage, page, selectedEnterpriseId, selectedMonth, snapshotEnterpriseFilter, snapshotRiskFilter, selectedSnapshotId, selectedRecordId, recordEnterpriseFilter, recordTypeFilter, recordExecutorFilter, recordTimeFilter, recordStatusFilter, recordQuickFilter, insurerAreaFilter, insurerIndustryFilter, insurerTierFilter, regulatorAreaFilter, regulatorIndustryFilter, regulatorStatusFilter, session])
 
   useEffect(() => {
     if (page === 'scoreDetail' && snapshotEnterpriseFilter !== 'all') {
@@ -1932,7 +1987,26 @@ function App() {
 
   if (isMarketingSite) return <MarketingSite />
 
-  if (routeState.page === 'pingxiangGov') return <PingxiangGovPlatformV2 />
+  if (routeState.page === 'pingxiangGov') {
+    if (isPingxiangDemoPage) {
+      return <PingxiangGovPlatformV2 forcedMode="demo" basePath="/gov/pingxiang-demo" />
+    }
+    if (!sessionReady) {
+      return <div className="login-shell"><div className="login-panel"><div className="page-title">正在确认登录状态</div><div className="page-subtitle">请稍候，系统正在安全恢复当前会话。</div></div></div>
+    }
+    if (!session) {
+      const returnTo = `${location.pathname}${location.search}`
+      return <Navigate to={`/platform/login?returnTo=${encodeURIComponent(returnTo)}`} replace />
+    }
+    if (!session.projects.some(project => project.projectId === 'pingxiang')) {
+      return <div className="login-shell"><div className="login-panel"><div className="page-title">无权访问该项目</div><div className="page-subtitle">当前账号未绑定平乡县项目，请联系安巡管理员核对账号范围。</div><button className="btn btn-dark login-submit" onClick={handleLogout}>退出登录</button></div></div>
+    }
+    return <PingxiangGovPlatformV2 forcedMode="real" basePath="/gov/pingxiang" authSession={session} onLogout={handleLogout} />
+  }
+
+  if (!sessionReady) {
+    return <div className="login-shell"><div className="login-panel"><div className="page-title">正在确认登录状态</div><div className="page-subtitle">请稍候，系统正在安全恢复当前会话。</div></div></div>
+  }
 
   if (routeState.page === 'login') {
     return (
@@ -1951,21 +2025,18 @@ function App() {
               <input className="inline-input" type="password" value={loginPassword} onChange={event => setLoginPassword(event.target.value)} placeholder="请输入密码" onKeyDown={event => { if (event.key === 'Enter') handleLogin() }} />
             </div>
             {loginError && <div className="notice login-error">{loginError}</div>}
-            <button className="btn btn-dark login-submit" onClick={handleLogin}>登录进入平台</button>
+            <button className="btn btn-dark login-submit" disabled={loginPending} onClick={handleLogin}>{loginPending ? '正在登录...' : '登录进入平台'}</button>
           </div>
           <div className="login-hint-grid">
             <div className="surface-outline">
-              <div className="section-subtitle">测试账号</div>
-              <div className="body mt-8">平台管理员：admin</div>
-              <div className="body">企业账号：ent_xintai01 / ent_hanglan01</div>
-              <div className="body">服务商账号：svc_team01</div>
-              <div className="body">保险账号：ins_picc01</div>
-              <div className="body">应急账号：gov_emg01</div>
+              <div className="section-subtitle">正式账号</div>
+              <div className="body mt-8">请使用项目交付时单独提供的账号登录。</div>
+              <div className="body">账号权限与所属项目由服务端统一校验。</div>
             </div>
             <div className="surface-outline">
               <div className="section-subtitle">登录后能力</div>
-              <div className="body mt-8">会按账号角色自动进入对应首页，刷新后仍保留登录态。</div>
-              <div className="body">未登录访问业务页会自动回到登录页，退出登录后将清理当前会话。</div>
+              <div className="body mt-8">系统会按账号所属机构和项目自动进入对应视图。</div>
+              <div className="body">退出或会话到期后，真实数据接口将立即停止访问。</div>
             </div>
           </div>
         </div>

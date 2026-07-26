@@ -374,7 +374,14 @@ export const adaptGovDashboardResponse = (payload: GovDashboardResponse): Dashbo
 const fetchDashboardPayload = async (url: string) => {
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
+    credentials: 'same-origin',
+    cache: 'no-store',
   })
+  if (response.status === 401 && !import.meta.env.DEV) {
+    const returnTo = `${window.location.pathname}${window.location.search}`
+    window.location.assign(`/platform/login?returnTo=${encodeURIComponent(returnTo)}`)
+    throw new Error('登录状态已失效')
+  }
   if (!response.ok) throw new Error(`真实数据接口返回 ${response.status}`)
   const payload = await response.json()
   if (payload?.success === false) throw new Error(payload?.message || '真实数据接口返回异常')
@@ -386,6 +393,7 @@ export const fetchGovPingxiangDashboard = async () => {
   try {
     payload = await fetchDashboardPayload('/api/gov/pingxiang/dashboard')
   } catch (error) {
+    if (!import.meta.env.DEV) throw error
     payload = await fetchDashboardPayload('http://127.0.0.1:8787/api/gov/pingxiang/dashboard')
   }
   return adaptGovDashboardResponse(payload)
