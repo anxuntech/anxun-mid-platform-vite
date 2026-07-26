@@ -2015,18 +2015,18 @@ function App() {
           <div className="brand-badge login-badge"><ShieldCheck className="icon-md" /></div>
           <div className="page-title">安全服务平台登录</div>
           <div className="page-subtitle">登录不同账号后，将按角色进入对应首页，并自动隔离导航和可见数据范围。</div>
-          <div className="stack-lg login-form">
+          <form className="stack-lg login-form" onSubmit={event => { event.preventDefault(); void handleLogin() }}>
             <div className="stack-sm">
               <div className="field-label">账号</div>
-              <input className="inline-input" value={loginUsername} onChange={event => setLoginUsername(event.target.value)} placeholder="请输入账号" />
+              <input className="inline-input" name="username" autoComplete="username" value={loginUsername} onChange={event => setLoginUsername(event.target.value)} placeholder="请输入账号" />
             </div>
             <div className="stack-sm">
               <div className="field-label">密码</div>
-              <input className="inline-input" type="password" value={loginPassword} onChange={event => setLoginPassword(event.target.value)} placeholder="请输入密码" onKeyDown={event => { if (event.key === 'Enter') handleLogin() }} />
+              <input className="inline-input" name="password" autoComplete="current-password" type="password" value={loginPassword} onChange={event => setLoginPassword(event.target.value)} placeholder="请输入密码" />
             </div>
             {loginError && <div className="notice login-error">{loginError}</div>}
-            <button className="btn btn-dark login-submit" disabled={loginPending} onClick={handleLogin}>{loginPending ? '正在登录...' : '登录进入平台'}</button>
-          </div>
+            <button className="btn btn-dark login-submit" type="submit" disabled={loginPending}>{loginPending ? '正在登录...' : '登录进入平台'}</button>
+          </form>
           <div className="login-hint-grid">
             <div className="surface-outline">
               <div className="section-subtitle">正式账号</div>

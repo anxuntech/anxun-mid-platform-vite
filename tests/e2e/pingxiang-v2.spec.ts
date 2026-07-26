@@ -101,6 +101,7 @@ test('正式平乡入口未登录时跳转到登录页', async ({ page }) => {
   await page.goto('/gov/pingxiang')
   await expect(page).toHaveURL(/\/platform\/login\?returnTo=/)
   await expect(page.getByText('安全服务平台登录')).toBeVisible()
+  await expect(page.locator('form.login-form')).toBeVisible()
 })
 
 test('登录返回地址拒绝协议相对地址和反斜杠绕过', async ({ page }) => {
