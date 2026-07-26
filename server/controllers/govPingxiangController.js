@@ -318,7 +318,8 @@ const reportFontPath = () => {
     process.env.REPORT_PDF_FONT_PATH,
     '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
     '/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf',
-    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+    '/usr/share/fonts/truetype/unifont/unifont.ttf',
+    '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf',
     'C:\\Windows\\Fonts\\simhei.ttf',
     'C:\\Windows\\Fonts\\Deng.ttf',
   ].filter(Boolean)
