@@ -325,9 +325,13 @@ const reportFontPath = () => {
   return candidates.find(candidate => existsSync(candidate)) || ''
 }
 
-export const buildPingxiangReportPdf = async ({ dashboard, organizationName }) => {
+export const buildPingxiangReportPdf = async ({
+  dashboard,
+  organizationName,
+  allowBuiltinFont = false,
+}) => {
   const fontPath = reportFontPath()
-  if (!fontPath) throw new Error('report-pdf-font-unavailable')
+  if (!fontPath && !allowBuiltinFont) throw new Error('report-pdf-font-unavailable')
 
   const document = new PDFDocument({
     size: 'A4',
@@ -345,7 +349,7 @@ export const buildPingxiangReportPdf = async ({ dashboard, organizationName }) =
     document.on('error', reject)
   })
 
-  document.font(fontPath)
+  if (fontPath) document.font(fontPath)
   document.fillColor('#17365d').fontSize(22).text('平乡县企业现场安全管理阶段报告')
   document.moveDown(0.4)
   document.fillColor('#64748b').fontSize(10)

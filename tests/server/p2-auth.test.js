@@ -153,6 +153,7 @@ test('proxy client headers are trusted only from the local reverse proxy', () =>
 test('protected report export produces a valid PDF without demo fallback', async () => {
   const pdf = await buildPingxiangReportPdf({
     organizationName: '平乡县应急管理局',
+    allowBuiltinFont: true,
     dashboard: {
       summary: {
         company_count: 1,
