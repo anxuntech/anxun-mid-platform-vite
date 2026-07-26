@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { usePingxiangDashboardData, type PingxiangDataMode } from '../pingxiang-gov/usePingxiangDashboardData'
 import type { AuthSession } from '../../auth'
@@ -68,10 +68,21 @@ export default function PingxiangGovPlatformV2({
 }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [adminSourceEnvironment, setAdminSourceEnvironment] = useState<'test' | 'real'>(() => {
+    if (authSession?.role !== 'admin') return 'real'
+    const requested = new URLSearchParams(location.search).get('source')
+    if (requested === 'test') return 'test'
+    try {
+      return sessionStorage.getItem('pingxiang-admin-source') === 'test' ? 'test' : 'real'
+    } catch {
+      return 'real'
+    }
+  })
   const state = usePingxiangDashboardData({
     forcedMode,
     projectId: projectConfig.projectId,
     dashboardEndpoint: projectConfig.dashboardEndpoint,
+    sourceEnvironment: authSession?.role === 'admin' ? adminSourceEnvironment : 'real',
     demoProject: {
       projectId: projectConfig.projectId,
       countyName: projectConfig.countyName,
@@ -80,12 +91,15 @@ export default function PingxiangGovPlatformV2({
   })
   const [showDataHelp, setShowDataHelp] = useState(false)
   const available = isDataAvailable(state)
+  const isTestPreview = state.data.sourceEnvironment === 'test'
   const canonicalPathname = location.pathname.replace(basePath, '/gov/pingxiang')
   const companyDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/(?:companies|company)\/([^/]+)\/?$/)
   const recordDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/(hazards|inspections|patrols|work-permits|trainings|training)\/([^/]+)\/?$/)
   const reportDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/reports\/([^/]+)\/?$/)
   const sourceLabel = state.mode === 'demo'
     ? '内部演示数据'
+    : isTestPreview
+      ? '管理员受控测试数据'
     : state.status === 'ready'
       ? '企业实际记录及项目归集数据'
       : state.status === 'error'
@@ -93,11 +107,35 @@ export default function PingxiangGovPlatformV2({
         : '正在归集'
   const environmentLabel = state.mode === 'demo'
     ? '演示环境'
+    : isTestPreview
+      ? '测试数据预览'
     : state.status === 'error'
       ? '归集异常'
       : state.status === 'ready'
         ? '真实数据'
         : '归集中'
+
+  useEffect(() => {
+    if (authSession?.role === 'admin') return
+    setAdminSourceEnvironment('real')
+  }, [authSession?.role])
+
+  const changeAdminSourceEnvironment = (next: 'test' | 'real') => {
+    if (authSession?.role !== 'admin') return
+    setAdminSourceEnvironment(next)
+    try {
+      sessionStorage.setItem('pingxiang-admin-source', next)
+    } catch {
+      // The current page state still changes if browser storage is unavailable.
+    }
+    const params = new URLSearchParams(location.search)
+    if (next === 'test') params.set('source', 'test')
+    else params.delete('source')
+    navigate({
+      pathname: location.pathname,
+      search: params.toString() ? `?${params.toString()}` : '',
+    })
+  }
 
   let page = <PingxiangGovOverviewV2 state={state} />
   if (recordDetailMatch) {
@@ -142,7 +180,13 @@ export default function PingxiangGovPlatformV2({
         </div>
         <div className="pxv2-header-actions">
           {authSession && <span className="pxv2-auth-user"><UserRound size={16} /><span>{authSession.organizationName}</span></span>}
-          <span className={`pxv2-env-badge ${state.mode === 'demo' ? 'demo' : state.status === 'error' ? 'error' : 'real'}`}><ShieldCheck size={15} />{environmentLabel}</span>
+          {authSession?.role === 'admin' && projectConfig.mode === 'real' && (
+            <div className="pxv2-source-switch" role="group" aria-label="管理员数据环境切换">
+              <button type="button" className={adminSourceEnvironment === 'real' ? 'active' : ''} aria-pressed={adminSourceEnvironment === 'real'} onClick={() => changeAdminSourceEnvironment('real')}>真实数据</button>
+              <button type="button" className={adminSourceEnvironment === 'test' ? 'active' : ''} aria-pressed={adminSourceEnvironment === 'test'} onClick={() => changeAdminSourceEnvironment('test')}>测试数据</button>
+            </div>
+          )}
+          <span className={`pxv2-env-badge ${state.mode === 'demo' ? 'demo' : isTestPreview ? 'test' : state.status === 'error' ? 'error' : 'real'}`}><ShieldCheck size={15} />{environmentLabel}</span>
           <button className="pxv2-data-help" type="button" onClick={() => setShowDataHelp(value => !value)} aria-expanded={showDataHelp}><HelpCircle size={18} /><span>数据说明</span></button>
           {authSession && onLogout && <button className="pxv2-data-help" type="button" onClick={() => onLogout()}><LogOut size={17} /><span>退出登录</span></button>}
           {showDataHelp && <div className="pxv2-data-popover"><strong>数据口径说明</strong><p>{dataSourceText(state)}</p><p>页面仅展示已成功归集的数据；缺失或归集失败时统一显示“暂无数据”。</p></div>}
@@ -160,7 +204,7 @@ export default function PingxiangGovPlatformV2({
       </aside>
 
       <main className="pxv2-main">
-        <EnvironmentNotice demo={state.mode === 'demo'} status={state.status} message={dataSourceText(state)} />
+        <EnvironmentNotice environment={state.mode === 'demo' ? 'demo' : isTestPreview ? 'test' : 'real'} status={state.status} message={dataSourceText(state)} />
         {page}
       </main>
 

@@ -37,6 +37,7 @@ const emptyDashboardData: DashboardViewData = {
   },
   warnings: [],
   isRealData: true,
+  sourceEnvironment: 'real',
 }
 
 export type CompanyRuntime = {
@@ -108,11 +109,13 @@ export const usePingxiangDashboardData = ({
   projectId = 'pingxiang',
   dashboardEndpoint = '/api/gov/pingxiang/dashboard',
   demoProject,
+  sourceEnvironment = 'real',
 }: {
   forcedMode?: PingxiangDataMode
   projectId?: string
   dashboardEndpoint?: string
   demoProject?: DemoProjectOptions
+  sourceEnvironment?: 'test' | 'real'
 } = {}) => {
   const demoDashboardData = useMemo(
     () => buildDemoDashboardData({ projectId, ...demoProject }),
@@ -146,12 +149,20 @@ export const usePingxiangDashboardData = ({
     setStatus('loading')
     setMessage('正在归集最新运行数据')
 
-    fetchGovPingxiangDashboard(dashboardEndpoint)
+    const separator = dashboardEndpoint.includes('?') ? '&' : '?'
+    const requestEndpoint = sourceEnvironment === 'test'
+      ? `${dashboardEndpoint}${separator}sourceEnvironment=test`
+      : dashboardEndpoint
+
+    setRealData(null)
+    fetchGovPingxiangDashboard(requestEndpoint)
       .then(data => {
         if (cancelled) return
         setRealData(data)
         setStatus('ready')
-        setMessage('当前展示企业实际使用及项目归集数据')
+        setMessage(data.sourceEnvironment === 'test'
+          ? '当前显示安巡管理员受控测试数据，仅用于功能验证'
+          : '当前展示企业实际使用及项目归集数据')
       })
       .catch(error => {
         if (cancelled) return
@@ -163,7 +174,7 @@ export const usePingxiangDashboardData = ({
     return () => {
       cancelled = true
     }
-  }, [dashboardEndpoint, mode])
+  }, [dashboardEndpoint, mode, sourceEnvironment])
 
   useEffect(() => {
     if (forcedMode) setModeState(forcedMode)
@@ -201,5 +212,6 @@ export const usePingxiangDashboardData = ({
     companies,
     companyMap,
     isRealView: data.isRealData,
+    isTestView: data.sourceEnvironment === 'test',
   }
 }
