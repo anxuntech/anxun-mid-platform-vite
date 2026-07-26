@@ -1,4 +1,4 @@
-import { appendFile, mkdir, rename, rm, stat } from 'node:fs/promises'
+import { appendFile, chmod, mkdir, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 const logDir = path.resolve(process.cwd(), '.logs')
@@ -8,7 +8,8 @@ const retainedFiles = () => Math.max(1, Number(process.env.WEBHOOK_LOG_RETAINED_
 let writeQueue = Promise.resolve()
 
 const ensureLogDir = async () => {
-  await mkdir(logDir, { recursive: true })
+  await mkdir(logDir, { recursive: true, mode: 0o700 })
+  await chmod(logDir, 0o700)
 }
 
 const rotateIfNeeded = async nextEntryBytes => {
@@ -41,7 +42,8 @@ export const writeWebhookLog = async entry => {
   await ensureLogDir()
   writeQueue = writeQueue.catch(() => undefined).then(async () => {
     await rotateIfNeeded(Buffer.byteLength(line, 'utf8'))
-    await appendFile(webhookLogFile, line, 'utf8')
+    await appendFile(webhookLogFile, line, { encoding: 'utf8', mode: 0o600 })
+    await chmod(webhookLogFile, 0o600)
   })
   return writeQueue
 }

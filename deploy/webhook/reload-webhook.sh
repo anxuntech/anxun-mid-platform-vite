@@ -18,7 +18,9 @@ if ! command -v pm2 >/dev/null 2>&1; then
 fi
 
 cd "${APP_DIR}"
-mkdir -p .logs
+mkdir -p .logs .data
+chmod 700 .logs .data
+find .logs .data -maxdepth 1 -type f -exec chmod 600 {} \;
 
 ENV_FILE="${ANXUN_ENV_FILE:-/etc/anxun-mid-platform.env}"
 if [ -f "${ENV_FILE}" ]; then
