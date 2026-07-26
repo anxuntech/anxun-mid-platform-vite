@@ -12,7 +12,7 @@ try {
     )
   `)
   await pool.execute(
-    'INSERT INTO p1_connection_check (id, chinese_text, json_value, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))',
+    'INSERT INTO p1_connection_check (id, chinese_text, json_value, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP(3))',
     [1, '平乡连接正常', JSON.stringify({ ok: true })],
   )
   const [rows] = await pool.query('SELECT id, chinese_text, json_value FROM p1_connection_check')

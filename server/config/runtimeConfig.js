@@ -10,6 +10,7 @@ export const getRuntimeConfig = () => ({
   pingxiangDataSource: process.env.PINGXIANG_DATA_SOURCE || 'demo',
   mysqlWriteEnabled: readBoolean('MYSQL_WRITE_ENABLED', false),
   webhookAuthRequired: readBoolean('WEBHOOK_AUTH_REQUIRED', false),
+  webhookAllowQueryToken: readBoolean('WEBHOOK_ALLOW_QUERY_TOKEN', false),
   caoliaoConnectorKey: process.env.CAOLIAO_CONNECTOR_KEY || 'caoliao-pingxiang-test',
   caoliaoSourceEnvironment: normalizeSourceEnvironment(
     process.env.CAOLIAO_SOURCE_ENVIRONMENT || 'test',

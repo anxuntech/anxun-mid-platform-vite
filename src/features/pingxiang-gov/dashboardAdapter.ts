@@ -70,6 +70,13 @@ type GovDashboardResponse = {
     company_id?: string
     company_name?: string
     caoliao_enterprise_name?: string
+    industry?: string
+    address?: string
+    contact_name?: string
+    contact_phone?: string
+    status?: string
+    enabled_at?: string
+    enabled_features?: Partial<Record<'hazard' | 'patrol' | 'workPermit' | 'training', boolean>>
   }>
   hazard_reports?: Array<Record<string, unknown>>
   patrol_records?: Array<Record<string, unknown>>
@@ -100,16 +107,65 @@ const runStatusFromCounts = (recordCount: number): RunStatus => (
   recordCount > 0 ? '近期有有效记录' : '尚未形成有效记录'
 )
 
+const toEvidenceFiles = (value: unknown) => (
+  Array.isArray(value)
+    ? value.map((item, index) => {
+      const record = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+      const rawKind = String(record.kind || '附件')
+      const kind = ['现场照片', '整改照片', '附件'].includes(rawKind)
+        ? rawKind as '现场照片' | '整改照片' | '附件'
+        : '附件'
+      return {
+        id: String(record.id || `real-evidence-${index + 1}`),
+        name: String(record.name || '现场附件'),
+        url: String(record.url || ''),
+        kind,
+      }
+    })
+    : []
+)
+
+const toTimeline = (value: unknown) => (
+  Array.isArray(value)
+    ? value.map((item, index) => {
+      const record = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+      const rawStatus = String(record.status || 'done')
+      return {
+        id: String(record.id || `real-timeline-${index + 1}`),
+        title: String(record.title || '业务记录'),
+        person: String(record.person || ''),
+        time: String(record.time || ''),
+        note: String(record.note || ''),
+        status: (['done', 'current', 'pending'].includes(rawStatus) ? rawStatus : 'done') as 'done' | 'current' | 'pending',
+      }
+    })
+    : []
+)
+
+const normalizeHazardLevel = (value: unknown): HazardRecord['level'] => {
+  const level = String(value || '')
+  if (/高|重大|严重/.test(level)) return '高'
+  if (/低|一般/.test(level)) return '低'
+  return '中'
+}
+
 const toPilotCompany = (company: NonNullable<GovDashboardResponse['companies']>[number], index: number): PilotCompany => ({
   project_id,
   company_id: company.company_id || `real-company-${index + 1}`,
   company_name: company.company_name || company.caoliao_enterprise_name || '未识别企业',
-  industry: '暂无行业信息',
-  address: '暂无地址信息',
-  contact_name: '暂无联系人',
-  contact_phone: '',
+  industry: company.industry || '暂无行业信息',
+  address: company.address || '暂无地址信息',
+  contact_name: company.contact_name || '暂无联系人',
+  contact_phone: company.contact_phone || '',
   enabled: true,
-  enabled_features: { hazard: true, workPermit: false, patrol: true, training: false },
+  enabled_at: company.enabled_at || '',
+  status: company.status || 'active',
+  enabled_features: {
+    hazard: company.enabled_features?.hazard ?? true,
+    workPermit: company.enabled_features?.workPermit ?? true,
+    patrol: company.enabled_features?.patrol ?? true,
+    training: company.enabled_features?.training ?? true,
+  },
   role: 'gov_viewer',
   demo_data: false,
 })
@@ -119,11 +175,18 @@ const toHazardRecord = (item: Record<string, unknown>, index: number): HazardRec
   company_id: String(item.company_id || 'unknown-company'),
   id: String(item.id || `real-hazard-${index + 1}`),
   title: String(item.title || '草料隐患上报'),
-  level: '中',
+  description: String(item.description || ''),
+  level: normalizeHazardLevel(item.hazard_level),
   status: String(item.status || '待整改') as HazardRecord['status'],
-  reported_at: String(item.submitted_at || ''),
+  reporter: String(item.reporter || item.submitter || ''),
+  reported_at: String(item.reported_at || item.submitted_at || ''),
   deadline: String(item.rectification_deadline || ''),
   responsible_person: String(item.responsible_person || item.submitter || ''),
+  rectified_at: String(item.rectified_at || ''),
+  closed_at: String(item.closed_at || ''),
+  photos: toEvidenceFiles(item.photos),
+  rectification_photos: toEvidenceFiles(item.rectification_photos),
+  timeline: toTimeline(item.timeline),
   demo_data: false,
 })
 
@@ -131,11 +194,17 @@ const toPatrolRecord = (item: Record<string, unknown>, index: number): PatrolRec
   project_id,
   company_id: String(item.company_id || 'unknown-company'),
   id: String(item.id || `real-patrol-${index + 1}`),
-  route_name: String(item.service_type || item.title || '草料巡检记录'),
-  checkpoint: String(item.title || item.result_summary || '现场检查点'),
+  route_name: String(item.route_name || item.service_type || item.title || '草料巡检记录'),
+  checkpoint: String(item.checkpoint || item.title || item.result_summary || '现场检查点'),
   status: String(item.status || '正常') as PatrolRecord['status'],
-  inspector: String(item.submitter || ''),
-  checked_at: String(item.submitted_at || ''),
+  inspector: String(item.inspector || item.submitter || ''),
+  checked_at: String(item.checked_at || item.submitted_at || ''),
+  item_count: Number(item.item_count || 0),
+  abnormal_count: Number(item.abnormal_count || 0),
+  result_summary: String(item.result_summary || ''),
+  photos: toEvidenceFiles(item.photos),
+  linked_hazard_id: String(item.linked_hazard_id || ''),
+  timeline: toTimeline(item.timeline),
   demo_data: false,
 })
 
@@ -148,6 +217,12 @@ const toWorkPermitRecord = (item: Record<string, unknown>, index: number): WorkP
   status: String(item.status || '待审批') as WorkPermitRecord['status'],
   applicant: String(item.applicant || item.submitter || ''),
   submitted_at: String(item.submitted_at || ''),
+  planned_start: String(item.planned_start || ''),
+  planned_end: String(item.planned_end || ''),
+  guardian: String(item.guardian || ''),
+  completed_at: String(item.completed_at || ''),
+  attachments: toEvidenceFiles(item.attachments),
+  timeline: toTimeline(item.timeline),
   demo_data: false,
 })
 
@@ -157,10 +232,17 @@ const toTrainingRecord = (item: Record<string, unknown>, index: number): Trainin
   id: String(item.id || `real-training-${index + 1}`),
   person_name: String(item.person_name || item.submitter || ''),
   course_name: String(item.course_name || item.title || '培训考试'),
+  method: String(item.method || ''),
   status: String(item.status || '已完成') as TrainingRecord['status'],
   exam_result: String(item.exam_result || '合格') as TrainingRecord['exam_result'],
   score: Number(item.score || 0),
-  completed_at: String(item.submitted_at || ''),
+  started_at: String(item.started_at || ''),
+  completed_at: String(item.completed_at || item.submitted_at || ''),
+  participants: Array.isArray(item.participants)
+    ? item.participants as TrainingRecord['participants']
+    : [],
+  attachments: toEvidenceFiles(item.attachments),
+  timeline: toTimeline(item.timeline),
   demo_data: false,
 })
 
@@ -223,16 +305,18 @@ export const buildDemoDashboardData = (): DashboardViewData => {
 }
 
 export const adaptGovDashboardResponse = (payload: GovDashboardResponse): DashboardViewData => {
-  const realCompanies = (payload.companies || []).map(toPilotCompany)
+  const baseCompanies = (payload.companies || []).map(toPilotCompany)
   const realHazards = (payload.hazard_reports || []).map(toHazardRecord)
   const realPatrols = (payload.patrol_records || []).map(toPatrolRecord)
   const realWorkPermits = (payload.work_permits || []).map(toWorkPermitRecord)
   const realTrainings = (payload.training_exam_records || []).map(toTrainingRecord)
+  const realCompanies = baseCompanies
   const warnings = normalizeWarnings(payload.warnings)
 
   const companyDisplay = realCompanies.reduce<Record<string, CompanyDisplayItem>>((acc, company, index) => {
     const companyHazards = realHazards.filter(item => item.company_id === company.company_id)
     const companyPatrols = realPatrols.filter(item => item.company_id === company.company_id)
+    const companyPermits = realWorkPermits.filter(item => item.company_id === company.company_id)
     const companyTrainings = realTrainings.filter(item => item.company_id === company.company_id)
     const openHazards = companyHazards.filter(item => !isClosedHazard(item.status)).length
     const abnormalPatrols = companyPatrols.filter(item => isAbnormalPatrol(item.status)).length
@@ -240,7 +324,7 @@ export const adaptGovDashboardResponse = (payload: GovDashboardResponse): Dashbo
 
     acc[company.company_id] = {
       shortName: shortCompanyName(company.company_name),
-      status: runStatusFromCounts(companyHazards.length + companyPatrols.length + companyTrainings.length),
+      status: runStatusFromCounts(companyHazards.length + companyPatrols.length + companyPermits.length + companyTrainings.length),
       openHazards,
       abnormalPatrols,
       trainingPassRate: companyTrainings.length > 0 ? Math.round((passedTrainings / companyTrainings.length) * 100) : 0,

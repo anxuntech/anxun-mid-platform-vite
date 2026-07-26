@@ -27,6 +27,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run server regression tests
+        run: npm run test:server
+
+      - name: Run TypeScript validation
+        run: npx tsc --noEmit
+
       - name: Build project
         run: npm run build
 

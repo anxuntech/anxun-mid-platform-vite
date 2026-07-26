@@ -13,15 +13,16 @@ const bearerToken = request => {
 }
 
 export const verifyWebhookRequest = request => {
-  const { webhookAuthRequired, webhookSecret } = getRuntimeConfig()
+  const { webhookAuthRequired, webhookAllowQueryToken, webhookSecret } = getRuntimeConfig()
   if (!webhookAuthRequired) return { accepted: true, mode: 'compatibility' }
   if (!webhookSecret) return { accepted: false, reason: 'webhook-secret-not-configured' }
 
-  const url = new URL(request.url, 'http://localhost')
   const supplied =
     request.headers['x-anxun-webhook-secret'] ||
     bearerToken(request) ||
-    url.searchParams.get('token') ||
+    (webhookAllowQueryToken
+      ? new URL(request.url, 'http://localhost').searchParams.get('token')
+      : '') ||
     ''
   return safeEqual(supplied, webhookSecret)
     ? { accepted: true, mode: 'required' }

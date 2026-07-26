@@ -1,18 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { getMysqlPool } from '../db/mysql.js'
 import { normalizeCompanyKey } from '../services/eventIdentity.js'
+import { toMysqlDateTime } from '../utils/businessTime.js'
 
-export const toMysqlDateTime = (value, fallback = new Date()) => {
-  const date = value ? new Date(value) : fallback
-  const safeDate = Number.isNaN(date.getTime()) ? fallback : date
-  return safeDate.toISOString().slice(0, 23).replace('T', ' ')
-}
+export { toMysqlDateTime } from '../utils/businessTime.js'
 
 const jsonValue = value => JSON.stringify(value ?? null)
 
 export const findConnector = async (connectorKey, connection = getMysqlPool()) => {
   const [rows] = await connection.execute(
-    `SELECT connector_id, connector_key, source_system, source_environment, enabled
+    `SELECT connector_id, connector_key, source_system, source_environment, project_id, enabled
        FROM source_connectors
       WHERE connector_key = ?`,
     [connectorKey],
@@ -26,6 +23,8 @@ export const saveRawWebhookEvent = async ({
   requestId,
   receivedAt,
   payload,
+  rawBody = '',
+  parseError = '',
   payloadHash,
   headers,
 }) => {
@@ -35,8 +34,9 @@ export const saveRawWebhookEvent = async ({
     await pool.execute(
       `INSERT INTO webhook_events (
          event_id, connector_id, source_system, source_environment, source_event_id,
-         request_id, received_at, payload_json, payload_hash, headers_json, parse_status
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')`,
+         request_id, received_at, payload_json, raw_body, parse_error,
+         payload_hash, headers_json, parse_status
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')`,
       [
         eventId,
         connector.connector_id,
@@ -46,6 +46,8 @@ export const saveRawWebhookEvent = async ({
         requestId,
         toMysqlDateTime(receivedAt),
         jsonValue(payload),
+        rawBody,
+        parseError,
         payloadHash,
         jsonValue(headers),
       ],
@@ -65,20 +67,46 @@ export const saveRawWebhookEvent = async ({
   return { eventId: rows[0].event_id, duplicate: true, parseStatus: rows[0].parse_status }
 }
 
-const findCompany = async (connection, connectorId, enterpriseName) => {
+const findCompany = async (connection, connectorId, record) => {
+  const enterpriseName = record.enterpriseName
   const normalizedName = normalizeCompanyKey(enterpriseName)
-  if (!normalizedName) return null
+  const sourceCompanyKey = normalizeCompanyKey(record.sourceCompanyKey)
+  const formNumber = String(record.formNumber || '').trim()
+  const partitionId = String(record.partitionId || '').trim()
+  if (!normalizedName && !sourceCompanyKey && !formNumber && !partitionId) return null
   const [rows] = await connection.execute(
     `SELECT c.company_id, c.project_id, p.county_id
        FROM source_company_mappings m
        JOIN companies c ON c.company_id = m.company_id
        JOIN projects p ON p.project_id = c.project_id
       WHERE m.connector_id = ?
-        AND m.source_company_name_normalized = ?
         AND m.status = 'active'
-      ORDER BY m.updated_at DESC
+        AND (? = '' OR c.project_id = ?)
+        AND (
+          (? <> '' AND m.source_company_key = ?)
+          OR (? <> '' AND m.partition_id = ?)
+          OR (? <> '' AND m.form_number = ? AND m.source_company_name_normalized = ?)
+          OR (? <> '' AND m.source_company_name_normalized = ?)
+        )
+      ORDER BY
+        (m.source_company_key = ? AND ? <> '') DESC,
+        (m.partition_id = ? AND ? <> '') DESC,
+        (m.form_number = ? AND ? <> '') DESC,
+        (m.source_company_name_normalized = ? AND ? <> '') DESC,
+        m.updated_at DESC
       LIMIT 1`,
-    [connectorId, normalizedName],
+    [
+      connectorId,
+      record.projectId || '', record.projectId || '',
+      sourceCompanyKey, sourceCompanyKey,
+      partitionId, partitionId,
+      formNumber, formNumber, normalizedName,
+      normalizedName, normalizedName,
+      sourceCompanyKey, sourceCompanyKey,
+      partitionId, partitionId,
+      formNumber, formNumber,
+      normalizedName, normalizedName,
+    ],
   )
   return rows[0] || null
 }
@@ -120,6 +148,16 @@ const insertSpecializedRecord = async (connection, recordId, record, occurredAt)
         record.rectificationDeadline ? toMysqlDateTime(record.rectificationDeadline) : null,
       ],
     )
+    await connection.execute(
+      `UPDATE hazard_records
+          SET rectified_at = ?, closed_at = ?
+        WHERE record_id = ?`,
+      [
+        record.rectifiedAt ? toMysqlDateTime(record.rectifiedAt) : null,
+        record.closedAt ? toMysqlDateTime(record.closedAt) : null,
+        recordId,
+      ],
+    )
   }
 
   if (record.formType === 'serviceRecord') {
@@ -140,9 +178,17 @@ const insertSpecializedRecord = async (connection, recordId, record, occurredAt)
   if (record.formType === 'workPermit') {
     await connection.execute(
       `INSERT INTO work_permit_records (
-         work_permit_id, record_id, permit_type, applicant_name, location
-       ) VALUES (?, ?, ?, ?, ?)`,
-      [randomUUID(), recordId, record.permitType || '', record.applicant || '', record.location || ''],
+         work_permit_id, record_id, permit_type, applicant_name, location,
+         planned_start, planned_end, guardian_name, completed_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        randomUUID(), recordId, record.permitType || '', record.applicant || '',
+        record.location || '',
+        record.plannedStart ? toMysqlDateTime(record.plannedStart) : null,
+        record.plannedEnd ? toMysqlDateTime(record.plannedEnd) : null,
+        record.guardian || '',
+        record.completedAt ? toMysqlDateTime(record.completedAt) : null,
+      ],
     )
   }
 
@@ -151,11 +197,15 @@ const insertSpecializedRecord = async (connection, recordId, record, occurredAt)
     const passed = /不合格|未通过/.test(record.examResult || '') ? 0 : 1
     await connection.execute(
       `INSERT INTO training_records (
-         training_id, record_id, title, participant_name, ended_at, exam_score, passed
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         training_id, record_id, title, participant_name, training_method,
+         started_at, ended_at, exam_score, passed
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         randomUUID(), recordId, record.courseName || record.formName || '',
-        record.personName || record.executor || '', occurredAt, score, passed,
+        record.personName || record.executor || '', record.trainingMethod || '',
+        record.startedAt ? toMysqlDateTime(record.startedAt) : null,
+        record.endedAt ? toMysqlDateTime(record.endedAt) : occurredAt,
+        score, passed,
       ],
     )
   }
@@ -201,6 +251,31 @@ export const standardizeWebhookEvent = async ({ eventId, connector, sourceEventI
 
   try {
     await connection.beginTransaction()
+    const [existingRecords] = await connection.execute(
+      `SELECT record_id, company_id
+         FROM business_records
+        WHERE raw_event_id = ?
+        LIMIT 1`,
+      [eventId],
+    )
+    if (existingRecords.length) {
+      await connection.execute(
+        `UPDATE data_quality_issues
+            SET status = 'resolved', resolved_company_id = ?, resolved_at = CURRENT_TIMESTAMP(3)
+          WHERE event_id = ? AND status = 'open'`,
+        [existingRecords[0].company_id, eventId],
+      )
+      await connection.execute(
+        `UPDATE webhook_events
+            SET parse_status = 'processed', error_message = NULL,
+                processed_at = COALESCE(processed_at, CURRENT_TIMESTAMP(3))
+          WHERE event_id = ?`,
+        [eventId],
+      )
+      await connection.commit()
+      return { status: 'recovered', recordId: existingRecords[0].record_id }
+    }
+
     if (!record.recognized || !recordType) {
       await addDataQualityIssue({
         connection,
@@ -211,7 +286,7 @@ export const standardizeWebhookEvent = async ({ eventId, connector, sourceEventI
       })
       await connection.execute(
         `UPDATE webhook_events
-            SET parse_status = 'isolated', error_message = ?, processed_at = UTC_TIMESTAMP(3)
+            SET parse_status = 'isolated', error_message = ?, processed_at = CURRENT_TIMESTAMP(3)
           WHERE event_id = ?`,
         ['unsupported-record-type', eventId],
       )
@@ -219,7 +294,10 @@ export const standardizeWebhookEvent = async ({ eventId, connector, sourceEventI
       return { status: 'isolated', reason: 'unsupported-record-type' }
     }
 
-    const company = await findCompany(connection, connector.connector_id, record.enterpriseName)
+    const company = await findCompany(connection, connector.connector_id, {
+      ...record,
+      projectId: connector.project_id || '',
+    })
     if (!company) {
       await addDataQualityIssue({
         connection,
@@ -230,7 +308,7 @@ export const standardizeWebhookEvent = async ({ eventId, connector, sourceEventI
       })
       await connection.execute(
         `UPDATE webhook_events
-            SET parse_status = 'isolated', error_message = ?, processed_at = UTC_TIMESTAMP(3)
+            SET parse_status = 'isolated', error_message = ?, processed_at = CURRENT_TIMESTAMP(3)
           WHERE event_id = ?`,
         ['company-unmatched', eventId],
       )
@@ -256,8 +334,14 @@ export const standardizeWebhookEvent = async ({ eventId, connector, sourceEventI
     await insertSpecializedRecord(connection, recordId, record, occurredAt)
     await insertAttachments(connection, recordId, record.evidenceFiles)
     await connection.execute(
+      `UPDATE data_quality_issues
+          SET status = 'resolved', resolved_company_id = ?, resolved_at = CURRENT_TIMESTAMP(3)
+        WHERE event_id = ? AND status = 'open'`,
+      [company.company_id, eventId],
+    )
+    await connection.execute(
       `UPDATE webhook_events
-          SET parse_status = 'processed', error_message = NULL, processed_at = UTC_TIMESTAMP(3)
+          SET parse_status = 'processed', error_message = NULL, processed_at = CURRENT_TIMESTAMP(3)
         WHERE event_id = ?`,
       [eventId],
     )
@@ -267,7 +351,7 @@ export const standardizeWebhookEvent = async ({ eventId, connector, sourceEventI
     await connection.rollback()
     await pool.execute(
       `UPDATE webhook_events
-          SET parse_status = 'failed', error_message = ?, processed_at = UTC_TIMESTAMP(3)
+          SET parse_status = 'failed', error_message = ?, processed_at = CURRENT_TIMESTAMP(3)
         WHERE event_id = ?`,
       [String(error.message || error).slice(0, 4_000), eventId],
     )
@@ -282,7 +366,7 @@ export const createImportBatch = async ({ sourceFile, checksum, totalRows }) => 
   await getMysqlPool().execute(
     `INSERT INTO data_import_batches (
        batch_id, source_file, source_environment, source_checksum, started_at, total_rows
-     ) VALUES (?, ?, 'test', ?, UTC_TIMESTAMP(3), ?)`,
+     ) VALUES (?, ?, 'test', ?, CURRENT_TIMESTAMP(3), ?)`,
     [batchId, sourceFile, checksum, totalRows],
   )
   return batchId
@@ -291,7 +375,7 @@ export const createImportBatch = async ({ sourceFile, checksum, totalRows }) => 
 export const finishImportBatch = async (batchId, summary, status = 'completed') => {
   await getMysqlPool().execute(
     `UPDATE data_import_batches
-        SET finished_at = UTC_TIMESTAMP(3), inserted_rows = ?, duplicate_rows = ?,
+        SET finished_at = CURRENT_TIMESTAMP(3), inserted_rows = ?, duplicate_rows = ?,
             failed_rows = ?, unmatched_rows = ?, status = ?, summary_json = ?
       WHERE batch_id = ?`,
     [
@@ -324,7 +408,7 @@ export const getWebhookEventById = async eventId => {
 export const markWebhookEventFailed = async (eventId, error) => {
   await getMysqlPool().execute(
     `UPDATE webhook_events
-        SET parse_status = 'failed', error_message = ?, processed_at = UTC_TIMESTAMP(3)
+        SET parse_status = 'failed', error_message = ?, processed_at = CURRENT_TIMESTAMP(3)
       WHERE event_id = ?`,
     [String(error?.message || error).slice(0, 4_000), eventId],
   )

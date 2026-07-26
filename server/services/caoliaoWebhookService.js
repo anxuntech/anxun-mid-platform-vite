@@ -16,10 +16,24 @@ const redactHeaders = headers =>
     ]),
   )
 
+const safeWriteWebhookLog = async entry => {
+  try {
+    await writeWebhookLog(entry)
+    return true
+  } catch (error) {
+    console.error(
+      `[caoliao] audit log write failed requestId=${entry.requestId || 'unknown'}`,
+      error,
+    )
+    return false
+  }
+}
+
 export const processCaoliaoWebhook = async ({
   headers,
   rawBody,
   parsedBody,
+  parseError = '',
   auth = { accepted: true },
 }) => {
   const receivedAt = new Date().toISOString()
@@ -27,7 +41,7 @@ export const processCaoliaoWebhook = async ({
   const safeHeaders = redactHeaders(headers)
 
   if (!auth.accepted) {
-    await writeWebhookLog({
+    await safeWriteWebhookLog({
       requestId,
       source: 'caoliao',
       receivedAt,
@@ -51,6 +65,8 @@ export const processCaoliaoWebhook = async ({
         receivedAt,
         headers: safeHeaders,
         payload: parsedBody,
+        rawBody,
+        parseError,
       })
       mysqlStatus = rawMysqlEvent.rawEvent.duplicate ? 'duplicate' : 'raw-written'
     } catch (error) {
@@ -104,13 +120,14 @@ export const processCaoliaoWebhook = async ({
       }
     }
 
-    await writeWebhookLog({
+    await safeWriteWebhookLog({
       requestId,
       source: 'caoliao',
       receivedAt,
       headers: safeHeaders,
       body: parsedBody,
       rawBody,
+      parseError,
       processStatus: failures.length ? 'partial-fail' : 'success',
       identifyTrace,
       dispatchResult: result,
@@ -132,11 +149,13 @@ export const processCaoliaoWebhook = async ({
         failures.push(`mysql-mark-failed:${mysqlError.message}`)
       }
     }
-    await writeWebhookLog({
+    await safeWriteWebhookLog({
       requestId,
       source: 'caoliao',
       receivedAt,
       headers: safeHeaders,
+      rawBody,
+      parseError,
       processStatus: 'fail',
       errorMessage: [
         error instanceof Error ? error.message : String(error),

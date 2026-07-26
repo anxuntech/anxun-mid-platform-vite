@@ -12,6 +12,7 @@ export type PilotFeatureKey = 'hazard' | 'workPermit' | 'patrol' | 'training'
 export type EvidenceFile = {
   id: string
   name: string
+  url?: string
   kind: '现场照片' | '整改照片' | '附件'
   tone?: 'blue' | 'green' | 'orange' | 'violet'
 }

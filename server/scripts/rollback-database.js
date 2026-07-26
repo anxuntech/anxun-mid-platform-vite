@@ -22,8 +22,15 @@ if (!allowed) {
 }
 
 const connection = await createMigrationConnection()
+let migrationLockAcquired = false
 
 try {
+  const [[lockRow]] = await connection.query(
+    `SELECT GET_LOCK('anxun-schema-migrations', 10) AS acquired`,
+  )
+  if (Number(lockRow.acquired) !== 1) throw new Error('database-migration-lock-timeout')
+  migrationLockAcquired = true
+
   if (migrationVersion === '001_initial_schema') {
     if (process.env.ALLOW_EMPTY_DATABASE_ROLLBACK !== 'true') {
       throw new Error('initial-schema-rollback-requires-empty-database-confirmation')
@@ -56,19 +63,29 @@ try {
     }
   }
 
+  if (
+    migrationVersion === '004_p1_data_contract' &&
+    process.env.ALLOW_DATA_CONTRACT_ROLLBACK !== 'true'
+  ) {
+    throw new Error('data-contract-rollback-requires-explicit-data-loss-confirmation')
+  }
+
   const sql = await readFile(migrationFile, 'utf8')
-  await connection.beginTransaction()
   try {
     await connection.query(sql)
     await connection.execute('DELETE FROM schema_migrations WHERE version = ?', [
       migrationVersion,
     ])
-    await connection.commit()
-    console.log(`[db:rollback] reverted empty schema ${migrationVersion}`)
+    console.log(`[db:rollback] reverted migration ${migrationVersion}`)
   } catch (error) {
-    await connection.rollback()
-    throw error
+    throw new Error(
+      `rollback-failed:${migrationVersion}:DDL may have partially committed; inspect schema before retrying: ${error.message}`,
+      { cause: error },
+    )
   }
 } finally {
+  if (migrationLockAcquired) {
+    await connection.query(`SELECT RELEASE_LOCK('anxun-schema-migrations')`)
+  }
   await connection.end()
 }

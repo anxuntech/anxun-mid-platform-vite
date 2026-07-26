@@ -11,7 +11,7 @@ export const readDatabaseConfig = ({ requireDatabase = true } = {}) => {
     user: process.env.DB_USER || '',
     password: process.env.DB_PASSWORD || '',
     charset: 'utf8mb4',
-    timezone: 'Z',
+    timezone: process.env.DB_TIME_ZONE || '+08:00',
     dateStrings: true,
     connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT_MS || 2_500),
     enableKeepAlive: true,
@@ -56,7 +56,10 @@ export const closeMysqlPool = async () => {
 export const checkMysqlHealth = async () => {
   const pool = getMysqlPool()
   const [rows] = await pool.query(
-    'SELECT VERSION() AS version, UTC_TIMESTAMP(3) AS now_utc, DATABASE() AS database_name',
+    `SELECT VERSION() AS version,
+            CURRENT_TIMESTAMP(3) AS now_business,
+            @@session.time_zone AS session_time_zone,
+            DATABASE() AS database_name`,
   )
   return rows[0]
 }

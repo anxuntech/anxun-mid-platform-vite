@@ -102,6 +102,17 @@ test('runtime HTTP boundaries protect real data and keep webhook acknowledgement
   assert.equal(acceptedResponse.status, 200)
   assert.deepEqual(await acceptedResponse.json(), { success: true, message: 'received' })
 
+  const invalidJsonResponse = await fetch(`${baseUrl}/api/caoliao/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Anxun-Webhook-Secret': webhookSecret,
+    },
+    body: '{"invalid":',
+  })
+  assert.equal(invalidJsonResponse.status, 200)
+  assert.deepEqual(await invalidJsonResponse.json(), { success: true, message: 'received' })
+
   const oversizedResponse = await fetch(`${baseUrl}/api/caoliao/webhook`, {
     method: 'POST',
     headers: {
@@ -121,7 +132,7 @@ test('runtime HTTP boundaries protect real data and keep webhook acknowledgement
   })
   assert.equal(authorizedDataResponse.status, 200)
   const authorizedData = await authorizedDataResponse.json()
-  assert.equal(authorizedData.total, 2)
+  assert.equal(authorizedData.total, 3)
 
   const realDashboardResponse = await fetch(`${baseUrl}/api/gov/pingxiang/dashboard`, {
     headers: { 'X-Anxun-Internal-Key': internalKey },
@@ -130,7 +141,14 @@ test('runtime HTTP boundaries protect real data and keep webhook acknowledgement
 
   const dataFile = path.join(tempDirectory, '.data', 'caoliao-business-events.jsonl')
   const businessEvents = (await readFile(dataFile, 'utf8')).trim().split(/\r?\n/)
-  assert.equal(businessEvents.length, 2)
+  assert.equal(businessEvents.length, 3)
+
+  const webhookLog = await readFile(
+    path.join(tempDirectory, '.logs', 'caoliao-webhook.jsonl'),
+    'utf8',
+  )
+  assert.match(webhookLog, /invalid/)
+  assert.match(webhookLog, /parseError/)
 
   const logText = output.join('')
   assert.doesNotMatch(logText, new RegExp(webhookSecret))

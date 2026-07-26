@@ -41,6 +41,7 @@ export const handleCaoliaoWebhook = async (request, response) => {
 
   let rawBody = '{}'
   let parsedBody = {}
+  let parseError = ''
   const auth = verifyWebhookRequest(request)
 
   try {
@@ -48,6 +49,7 @@ export const handleCaoliaoWebhook = async (request, response) => {
     const normalizedBody = rawBody.replace(/^\uFEFF/, '').trim()
     parsedBody = normalizedBody ? JSON.parse(normalizedBody) : {}
   } catch (error) {
+    parseError = error instanceof Error ? error.message : String(error)
     console.error('[caoliao] request body parse failed, continue with empty body', error)
   }
 
@@ -56,6 +58,7 @@ export const handleCaoliaoWebhook = async (request, response) => {
       headers: request.headers,
       rawBody,
       parsedBody,
+      parseError,
       auth,
     })
     sendJson(response, 200, result)

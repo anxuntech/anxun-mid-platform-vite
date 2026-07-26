@@ -8,8 +8,15 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const migrationsDir = path.resolve(here, '..', '..', 'database', 'migrations')
 
 const connection = await createMigrationConnection()
+let migrationLockAcquired = false
 
 try {
+  const [[lockRow]] = await connection.query(
+    `SELECT GET_LOCK('anxun-schema-migrations', 10) AS acquired`,
+  )
+  if (Number(lockRow.acquired) !== 1) throw new Error('database-migration-lock-timeout')
+  migrationLockAcquired = true
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version VARCHAR(64) PRIMARY KEY,
@@ -37,20 +44,23 @@ try {
       continue
     }
 
-    await connection.beginTransaction()
     try {
       await connection.query(sql)
       await connection.execute(
         'INSERT INTO schema_migrations (version, checksum) VALUES (?, ?)',
         [version, checksum],
       )
-      await connection.commit()
       console.log(`[db:migrate] applied ${version}`)
     } catch (error) {
-      await connection.rollback()
-      throw error
+      throw new Error(
+        `migration-failed:${version}:DDL may have partially committed; inspect schema before retrying: ${error.message}`,
+        { cause: error },
+      )
     }
   }
 } finally {
+  if (migrationLockAcquired) {
+    await connection.query(`SELECT RELEASE_LOCK('anxun-schema-migrations')`)
+  }
   await connection.end()
 }

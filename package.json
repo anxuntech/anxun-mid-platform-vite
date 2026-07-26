@@ -17,8 +17,10 @@
     "db:seed:pingxiang": "node server/scripts/seed-pingxiang-database.js",
     "db:import:jsonl": "node server/scripts/import-jsonl-to-mysql.js",
     "db:reconcile": "node server/scripts/reconcile-database.js",
+    "db:repair:beijing-time": "node server/scripts/repair-beijing-time-offset.js",
     "db:replay": "node server/scripts/replay-webhook-event.js",
     "db:verify:replay": "node server/scripts/verify-replay-flow.js",
+    "db:verify:four-types": "node server/scripts/verify-four-type-flow.js",
     "db:event:check": "node server/scripts/check-webhook-event.js"
   },
   "dependencies": {

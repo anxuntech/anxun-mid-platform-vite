@@ -20,6 +20,8 @@ export const saveMysqlRawEvent = async ({
   receivedAt,
   headers,
   payload,
+  rawBody = '',
+  parseError = '',
   record,
   connectorKey,
 }) => {
@@ -27,8 +29,9 @@ export const saveMysqlRawEvent = async ({
   const connector = await findConnector(selectedConnector)
   if (!connector) throw new Error(`source-connector-not-found:${selectedConnector}`)
   if (!connector.enabled) throw new Error(`source-connector-disabled:${selectedConnector}`)
+  if (!connector.project_id) throw new Error(`source-connector-project-not-configured:${selectedConnector}`)
 
-  const payloadHash = hashPayload(payload)
+  const payloadHash = hashPayload(parseError ? { rawBody } : payload)
   const sourceEventId = deriveSourceEventId({ payload, record, payloadHash })
   const rawEvent = await saveRawWebhookEvent({
     connector,
@@ -36,6 +39,8 @@ export const saveMysqlRawEvent = async ({
     requestId,
     receivedAt,
     payload,
+    rawBody,
+    parseError,
     payloadHash,
     headers: redactHeaders(headers),
   })

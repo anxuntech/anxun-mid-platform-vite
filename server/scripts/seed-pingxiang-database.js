@@ -24,13 +24,14 @@ try {
   )
   await connection.execute(
     `INSERT INTO source_connectors (
-       connector_id, connector_key, source_system, source_environment, enabled
+       connector_id, connector_key, source_system, source_environment, project_id, enabled
      ) VALUES
-       ('connector-caoliao-pingxiang-test', 'caoliao-pingxiang-test', 'caoliao', 'test', 1),
-       ('connector-caoliao-pingxiang-real', 'caoliao-pingxiang-real', 'caoliao', 'real', 0)
+       ('connector-caoliao-pingxiang-test', 'caoliao-pingxiang-test', 'caoliao', 'test', 'pingxiang', 1),
+       ('connector-caoliao-pingxiang-real', 'caoliao-pingxiang-real', 'caoliao', 'real', 'pingxiang', 0)
      ON DUPLICATE KEY UPDATE
        source_system = VALUES(source_system),
-       source_environment = VALUES(source_environment)`,
+       source_environment = VALUES(source_environment),
+       project_id = VALUES(project_id)`,
   )
 
   for (const company of companyMap) {

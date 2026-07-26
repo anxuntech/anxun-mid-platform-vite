@@ -23,7 +23,7 @@
 | 网络 | 仅内网，端口 3306 |
 | VPC | `vpc-2zerq3kttgj8idde79hi4` |
 | 内网地址 | `rm-2zek5t43u213g1p4p.mysql.rds.aliyuncs.com` |
-| 白名单 | 仅 ECS 私网地址 `172.20.19.247` |
+| 业务白名单 | 仅 ECS 私网地址 `172.20.19.247`；另有阿里云诊断服务维护的系统白名单 |
 | 自动小版本升级 | Auto |
 | 维护窗口 | UTC 18:00-22:00 |
 | SSL | 当前未启用 |
@@ -35,7 +35,7 @@ ECS 已完成 DNS 和 3306 端口验证，连接成功。未申请 RDS 公网地
 
 - 已创建业务库 `anxun_platform`，字符集 `utf8mb4`，排序规则 `utf8mb4_0900_ai_ci`。
 - `anxun_app` 保留为应急管理账号，已轮换临时密码，不进入 Node 配置。
-- `anxun_codex` 为 P1 维护账号，只授权 `anxun_platform` 的迁移和维护权限。
+- `anxun_codex` 为 P1 维护账号，仅绑定 `anxun_platform`，但当前使用 RDS `ReadWrite` 预设，实际包含 `DROP` 等高于日常维护所需的权限，需在后续维护窗口进一步收紧。
 - `anxun_runtime` 为线上运行账号；实际数据库权限已收紧为 `SELECT / INSERT / UPDATE`，无普通建表、改表和删表权限。
 - RDS 普通账号仍带有阿里云托管账号的系统只读元数据权限，这是服务侧内置行为。
 - 应急凭据：`/root/.config/anxun/rds-emergency.env`
@@ -154,7 +154,7 @@ ECS 已完成 DNS 和 3306 端口验证，连接成功。未申请 RDS 公网地
 - 部署前代码备份：`/opt/backups/anxun-mid-platform-vite/p1-pre-backend-20260723-1240.tar.gz`
 - MySQL 写入启用前环境备份：`/root/.config/anxun/anxun-mid-platform.env.before-mysql-write`
 - JSONL 原始备份和每日压缩备份均已保留。
-- 本轮未上传 `dist`，未覆盖 `/var/www/html`，未修改 Nginx。
+- 本轮合并至 `main` 后触发的既有 Deploy Main 工作流实际执行了 `dist/` 同步并覆盖 `/var/www/html`；由于本轮没有前端源码改动，生成的前端内容与原版本等价。未修改 Nginx。
 
 应用异常时：
 
@@ -169,6 +169,8 @@ ECS 已完成 DNS 和 3306 端口验证，连接成功。未申请 RDS 公网地
 
 ## 当前未扩大事项
 
+- 2026-07-23 审计发现旧事件存在 UTC 字符串与北京时间默认字段混用；修复代码和显式历史校正脚本已形成，但未执行数据库校正前，不能把旧时间数据标记为已修复。
+- 作业票和培训考试已有识别、表结构与验证脚本；在真实数据库执行四类链路验证前，不能表述为四类均已完成端到端验收。
 - 草料端认证方式尚未在真实后台确认，因此 `WEBHOOK_AUTH_REQUIRED=false`。
 - 正式企业连接器和企业映射尚未启用，当前写入均为 `test`。
 - SSL、TDE 和新版 PITR Protection 未启用；数据库目前仅允许同 VPC ECS 单 IP 访问。

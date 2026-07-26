@@ -94,11 +94,27 @@ const getFormContext = payload => {
     payload?.formSerialNumber ||
     ''
   const directType = normalizeText(payload?.formType || payload?.form_type || payload?.bizType || payload?.biz_type)
+  const sourceCompanyKey =
+    refData?.company_id ||
+    refData?.companyId ||
+    payload?.company_id ||
+    payload?.companyId ||
+    payload?.enterprise_id ||
+    payload?.enterpriseId ||
+    ''
+  const partitionId =
+    refData?.partition_id ||
+    refData?.partitionId ||
+    payload?.partition_id ||
+    payload?.partitionId ||
+    ''
 
   return {
     formName,
     formNumber,
     serialNumber,
+    sourceCompanyKey,
+    partitionId,
     directType,
     payloadText: inspectPayloadText(payload),
     fieldItems,
@@ -303,6 +319,8 @@ const buildBaseRecord = (payload, identifyContext) => {
     formName,
     formNumber: identifyContext?.formNumber || '',
     serialNumber: identifyContext?.serialNumber || '',
+    sourceCompanyKey: identifyContext?.sourceCompanyKey || '',
+    partitionId: identifyContext?.partitionId || '',
     enterpriseName: getEnterpriseName(payload, fieldItems, formName),
     submittedAt: getSubmittedAt(payload),
     executor: getExecutor(payload, fieldItems),
@@ -331,11 +349,13 @@ export const processHazardForm = async (payload, identifyContext) => {
   return {
     formType: 'hazard',
     recognized: true,
-    hazardName: findFieldValue(fieldItems, ['隐患名称', '问题名称', '风险点']) || base.formName || '草料隐患上报',
-    hazardLevel: findFieldValue(fieldItems, ['隐患等级', '风险等级', '严重程度']) || '待判定',
+    hazardName: payload?.hazardName || findFieldValue(fieldItems, ['隐患名称', '问题名称', '风险点']) || base.formName || '草料隐患上报',
+    hazardLevel: payload?.hazardLevel || findFieldValue(fieldItems, ['隐患等级', '风险等级', '严重程度']) || '待判定',
     status: payload?.status || findFieldValue(fieldItems, ['状态', '处理进度', '整改情况', '复查情况']) || '',
-    responsiblePerson: findFieldValue(fieldItems, ['责任人', '整改人']) || '',
-    rectificationDeadline: findFieldValue(fieldItems, ['整改期限', '完成期限', '截止时间']) || '',
+    responsiblePerson: payload?.responsiblePerson || findFieldValue(fieldItems, ['责任人', '整改人']) || '',
+    rectificationDeadline: payload?.rectificationDeadline || findFieldValue(fieldItems, ['整改期限', '完成期限', '截止时间']) || '',
+    rectifiedAt: findFieldValue(fieldItems, ['整改时间', '整改完成时间']) || '',
+    closedAt: findFieldValue(fieldItems, ['闭环时间', '销号时间', '复查通过时间']) || '',
     summary: getResultSummary(payload, fieldItems, base.formName || '隐患上报'),
     identifyReason: identifyContext?.identifyReason || 'matched-hazard-keywords',
     matchedKeywords: identifyContext?.matchedKeywords || [],
@@ -355,8 +375,8 @@ export const processServiceRecordForm = async (payload, identifyContext) => {
       (knownRectificationFormNumbers.includes(String(base.formNumber || '').toUpperCase()) ? '整改反馈' : '') ||
       findFieldValue(fieldItems, ['服务类型', '培训主题', '检查类型', '点检类型', '设备类型']) ||
       (base.formName.includes('灭火器') || base.formName.includes('消火栓') ? '消防设备点检' : base.formName.includes('机械设备') ? '机械设备检查' : base.formName || '现场检查'),
-    resultSummary: getResultSummary(payload, fieldItems, base.formName || '服务记录回传'),
-    recordStatus: '已回传',
+    resultSummary: payload?.resultSummary || getResultSummary(payload, fieldItems, base.formName || '服务记录回传'),
+    recordStatus: payload?.status || payload?.recordStatus || '已回传',
     identifyReason: identifyContext?.identifyReason || 'matched-service-record-keywords',
     matchedKeywords: identifyContext?.matchedKeywords || [],
     ...base,
@@ -374,6 +394,10 @@ export const processWorkPermitForm = async (payload, identifyContext) => {
     location: payload?.location || findFieldValue(fieldItems, ['作业地点', '动火地点', '部位', '地点']) || '',
     permitStatus: payload?.status || findFieldValue(fieldItems, ['状态', '处理进度', '审批状态']) || '待审批',
     applicant: payload?.applicant || findFieldValue(fieldItems, ['申请人', '作业负责人', '填报人', '姓名']) || base.executor,
+    plannedStart: payload?.plannedStart || findFieldValue(fieldItems, ['计划开始时间', '作业开始时间', '开始时间']) || '',
+    plannedEnd: payload?.plannedEnd || findFieldValue(fieldItems, ['计划结束时间', '作业结束时间', '结束时间']) || '',
+    guardian: payload?.guardian || findFieldValue(fieldItems, ['监护人', '现场监护']) || '',
+    completedAt: payload?.completedAt || findFieldValue(fieldItems, ['完成时间', '作业完成时间']) || '',
     summary: getResultSummary(payload, fieldItems, base.formName || '作业票记录'),
     identifyReason: identifyContext?.identifyReason || 'matched-work-permit',
     matchedKeywords: identifyContext?.matchedKeywords || [],
@@ -393,6 +417,9 @@ export const processTrainingExamForm = async (payload, identifyContext) => {
     trainingStatus: payload?.status || findFieldValue(fieldItems, ['完成状态', '状态']) || '已完成',
     examResult: payload?.examResult || findFieldValue(fieldItems, ['考试结果', '结果']) || '合格',
     score: Number(payload?.score || findFieldValue(fieldItems, ['得分', '分数', '成绩']) || 0),
+    trainingMethod: payload?.trainingMethod || findFieldValue(fieldItems, ['培训方式', '学习方式']) || '',
+    startedAt: payload?.startedAt || findFieldValue(fieldItems, ['开始时间', '培训开始时间']) || '',
+    endedAt: payload?.endedAt || findFieldValue(fieldItems, ['完成时间', '结束时间', '考试时间']) || base.submittedAt,
     summary: getResultSummary(payload, fieldItems, base.formName || '培训考试记录'),
     identifyReason: identifyContext?.identifyReason || 'matched-training-exam',
     matchedKeywords: identifyContext?.matchedKeywords || [],

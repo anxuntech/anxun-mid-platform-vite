@@ -18,7 +18,7 @@ if (event.parse_status === 'processed') throw new Error('webhook-event-already-p
 const replayJobId = randomUUID()
 await pool.execute(
   `INSERT INTO event_replay_jobs (replay_job_id, event_id, status, started_at, attempts)
-   VALUES (?, ?, 'running', UTC_TIMESTAMP(3), 1)`,
+   VALUES (?, ?, 'running', CURRENT_TIMESTAMP(3), 1)`,
   [replayJobId, eventId],
 )
 
@@ -34,7 +34,7 @@ try {
   })
   await pool.execute(
     `UPDATE event_replay_jobs
-        SET status = 'completed', finished_at = UTC_TIMESTAMP(3), last_error = NULL
+        SET status = 'completed', finished_at = CURRENT_TIMESTAMP(3), last_error = NULL
       WHERE replay_job_id = ?`,
     [replayJobId],
   )
@@ -42,7 +42,7 @@ try {
 } catch (error) {
   await pool.execute(
     `UPDATE event_replay_jobs
-        SET status = 'failed', finished_at = UTC_TIMESTAMP(3), last_error = ?
+        SET status = 'failed', finished_at = CURRENT_TIMESTAMP(3), last_error = ?
       WHERE replay_job_id = ?`,
     [error.message, replayJobId],
   )
