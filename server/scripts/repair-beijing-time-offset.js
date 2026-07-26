@@ -1,9 +1,15 @@
 import { closeMysqlPool, getMysqlPool } from '../db/mysql.js'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
 const args = process.argv.slice(2)
 const apply = args.includes('--apply')
 const environmentArg = args.find(value => value.startsWith('--environment='))
 const environment = String(environmentArg?.split('=')[1] || 'test').toLowerCase()
+const reportFileArg = args.find(value => value.startsWith('--report-file='))
+const reportFile = reportFileArg
+  ? path.resolve(reportFileArg.slice('--report-file='.length))
+  : ''
 
 if (!['test', 'real'].includes(environment)) {
   throw new Error('invalid-environment:expected test or real')
@@ -46,6 +52,46 @@ const countCandidates = async () => {
   }
 }
 
+const listCandidates = async () => {
+  const [rows] = await connection.execute(
+    `SELECT e.event_id,
+            e.request_id,
+            e.source_event_id,
+            e.source_environment,
+            e.received_at,
+            e.processed_at,
+            e.created_at,
+            TIMESTAMPDIFF(MINUTE, e.received_at, e.created_at) AS offset_minutes,
+            b.record_id,
+            b.record_type,
+            b.occurred_at
+       FROM webhook_events e
+       LEFT JOIN business_records b ON b.raw_event_id = e.event_id
+      WHERE ${eventCondition}
+      ORDER BY e.created_at, e.event_id`,
+    [environment],
+  )
+  return rows
+}
+
+const writeCandidateReport = async (candidates, summary) => {
+  if (!reportFile) return
+  await mkdir(path.dirname(reportFile), { recursive: true })
+  await writeFile(
+    reportFile,
+    `${JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      environment,
+      identifyRule: 'created_at and received_at differ by 475-485 minutes',
+      cause: 'legacy UTC ISO timestamps were written into timezone-free MySQL DATETIME columns',
+      summary,
+      candidates,
+    }, null, 2)}\n`,
+    { encoding: 'utf8', mode: 0o600 },
+  )
+  await chmod(reportFile, 0o600)
+}
+
 const updateSpecialized = async (table, timeColumns) => {
   const assignments = timeColumns
     .map(column => `${column} = CASE WHEN ${column} IS NULL THEN NULL ELSE DATE_ADD(${column}, INTERVAL 8 HOUR) END`)
@@ -62,12 +108,15 @@ const updateSpecialized = async (table, timeColumns) => {
 
 try {
   const before = await countCandidates()
+  const candidates = await listCandidates()
+  await writeCandidateReport(candidates, before)
   if (!apply || before.eventCount === 0) {
     console.log(JSON.stringify({
       mode: 'dry-run',
       environment,
       offsetHours: 8,
       backupIdRequiredForApply: true,
+      reportFile: reportFile || null,
       candidates: before,
     }, null, 2))
   } else {
@@ -114,6 +163,7 @@ try {
       environment,
       offsetHours: 8,
       backupId: process.env.TIME_REPAIR_BACKUP_ID,
+      reportFile: reportFile || null,
       corrected: before,
       remainingCandidates: after,
     }, null, 2))
