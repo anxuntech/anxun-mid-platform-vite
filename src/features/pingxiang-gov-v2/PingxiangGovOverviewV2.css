@@ -994,14 +994,17 @@
 }
 
 .pxv2-source-switch {
+  flex: 0 0 auto;
   display: inline-flex;
   padding: 3px;
   border: 1px solid rgba(255, 255, 255, .3);
   border-radius: 999px;
   background: rgba(7, 53, 120, .28);
+  white-space: nowrap;
 }
 
 .pxv2-source-switch button {
+  min-width: 70px;
   min-height: 30px;
   padding: 0 11px;
   border: 0;
@@ -1011,6 +1014,7 @@
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .pxv2-source-switch button.active {
@@ -1798,6 +1802,10 @@
 }
 
 @media (max-width: 1450px) {
+  .pxv2-auth-user {
+    display: none;
+  }
+
   .pxv2-secondary-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
