@@ -154,8 +154,16 @@ export function DetailPageShell({ eyebrow, title, enterprise, status, time, back
   return (
     <div className="pxv2-page-stack pxv21-detail-page">
       <div className="pxv21-detail-hero">
-        <div><Link to={backHref}><ArrowLeft size={17} />返回原清单</Link><span>{eyebrow}</span><h1>{title}</h1><p>{enterprise} · {time || '时间未提供'}</p></div>
-        <div><StatusPill value={status} /><button type="button" onClick={onPrint || (() => window.print())}><Printer size={17} />打印 / 导出</button></div>
+        <div className="pxv21-detail-heading">
+          <Link className="pxv21-detail-back" to={backHref}><ArrowLeft size={17} />返回原清单</Link>
+          <span className="pxv21-detail-kicker">{eyebrow}</span>
+          <h1>{title}</h1>
+          <p>{enterprise} · {time || '时间未提供'}</p>
+        </div>
+        <div className="pxv21-detail-actions">
+          <StatusPill value={status} />
+          <button type="button" onClick={onPrint || (() => window.print())}><Printer size={17} />打印 / 导出</button>
+        </div>
       </div>
       {children}
     </div>

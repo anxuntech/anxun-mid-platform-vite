@@ -375,6 +375,11 @@ for (const item of [
     await expect(page).toHaveURL(new RegExp(item.detail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
     await expect(page.locator('.pxv21-detail-page')).toBeVisible()
     await expect(page.getByText('打印 / 导出')).toBeVisible()
+    const backBox = await page.locator('.pxv21-detail-back').boundingBox()
+    const kickerBox = await page.locator('.pxv21-detail-kicker').boundingBox()
+    const titleBox = await page.locator('.pxv21-detail-heading h1').boundingBox()
+    expect(backBox && kickerBox && kickerBox.y).toBeGreaterThan((backBox?.y || 0) + (backBox?.height || 0))
+    expect(kickerBox && titleBox && titleBox.y).toBeGreaterThanOrEqual((kickerBox?.y || 0) + (kickerBox?.height || 0))
   })
 }
 
@@ -460,6 +465,7 @@ test('生成规定分辨率和核心页面验收截图', async ({ page, isMobile
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(testPath('/gov/pingxiang')); await expect(page.locator('.pxv2-metric-band')).toContainText('30'); await page.screenshot({ path: `${screenshotDir}/overview-1440x900.png` })
   await page.goto(testPath('/gov/pingxiang/hazards')); await page.locator('tbody tr').first().getByRole('link', { name: '快速查看' }).click(); await page.screenshot({ path: `${screenshotDir}/hazard-drawer-1440x900.png` })
+  await page.goto(testPath('/gov/pingxiang/inspections/PX-XJ-0001')); await expect(page.locator('.pxv21-detail-page')).toBeVisible(); await page.screenshot({ path: `${screenshotDir}/inspection-detail-1440x900.png` })
   await page.setViewportSize({ width: 1366, height: 768 })
   await page.goto(testPath('/gov/pingxiang')); await expect(page.locator('.pxv2-metric-band')).toContainText('30'); await page.screenshot({ path: `${screenshotDir}/overview-1366x768.png` })
   await page.goto(testPath('/gov/pingxiang/inspections')); await page.screenshot({ path: `${screenshotDir}/inspections-1366x768.png` })
