@@ -61,7 +61,23 @@ const selectBackup = async () => {
         eventIds,
       )
     : [[]]
-  return { exportedAt: new Date().toISOString(), environment: 'test', records, attachments, hazards, inspections, permits, trainings, events }
+  const [companyMappings] = await connection.execute(
+    `SELECT * FROM source_company_mappings
+      WHERE connector_id = 'connector-caoliao-pingxiang-test'
+      ORDER BY mapping_id`,
+  )
+  return {
+    exportedAt: new Date().toISOString(),
+    environment: 'test',
+    records,
+    attachments,
+    hazards,
+    inspections,
+    permits,
+    trainings,
+    events,
+    companyMappings,
+  }
 }
 
 const deleteCurrentTestData = async () => {
@@ -248,6 +264,10 @@ try {
      ON DUPLICATE KEY UPDATE project_id = 'pingxiang', enabled = 1`,
   )
   const removed = await deleteCurrentTestData()
+  await connection.execute(
+    `DELETE FROM source_company_mappings
+      WHERE connector_id = 'connector-caoliao-pingxiang-test'`,
+  )
   for (const company of seed.companies) {
     await connection.execute(
       `INSERT INTO companies (

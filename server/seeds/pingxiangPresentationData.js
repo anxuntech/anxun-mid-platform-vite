@@ -53,9 +53,9 @@ export const buildPingxiangPresentationSeed = () => {
     enabledAt: `2026-01-${String(3 + (index % 22)).padStart(2, '0')} 09:00:00`,
   }))
 
-  const hazards = companies.slice(0, 24).flatMap((company, companyIndex) =>
-    Array.from({ length: companyIndex < 12 ? 3 : 2 }, (_, itemIndex) => {
-      const sequence = companyIndex < 12 ? companyIndex * 3 + itemIndex + 1 : 36 + (companyIndex - 12) * 2 + itemIndex + 1
+  const hazards = companies.flatMap((company, companyIndex) =>
+    Array.from({ length: 2 }, (_, itemIndex) => {
+      const sequence = companyIndex * 2 + itemIndex + 1
       const sourceRecordId = `PX-YH-${pad(sequence)}`
       const occurredAt = dateFor(companyIndex, itemIndex, 9)
       const status = hazardStatuses[(sequence - 1) % hazardStatuses.length]
@@ -101,9 +101,9 @@ export const buildPingxiangPresentationSeed = () => {
       }
     }))
 
-  const inspections = companies.slice(0, 24).flatMap((company, companyIndex) =>
-    Array.from({ length: companyIndex < 12 ? 3 : 2 }, (_, itemIndex) => {
-      const sequence = companyIndex < 12 ? companyIndex * 3 + itemIndex + 1 : 36 + (companyIndex - 12) * 2 + itemIndex + 1
+  const inspections = companies.flatMap((company, companyIndex) =>
+    Array.from({ length: 2 }, (_, itemIndex) => {
+      const sequence = companyIndex * 2 + itemIndex + 1
       const sourceRecordId = `PX-XJ-${pad(sequence)}`
       const occurredAt = dateFor(companyIndex, itemIndex, 10)
       const abnormal = sequence % 4 === 0
