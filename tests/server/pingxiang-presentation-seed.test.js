@@ -20,6 +20,8 @@ test('平乡测试数据固定生成30家企业和168条完整业务记录', () 
   assert.ok(seed.companies.every(company =>
     company.industry && company.address && company.contactName && company.contactPhone))
   assert.ok(seed.records.every(record => record.attachments.length >= 2))
+  const companiesWithRecords = new Set(seed.records.map(record => record.company.companyId))
+  assert.equal(companiesWithRecords.size, 30)
 })
 
 test('四类测试详情具备业务过程字段且不使用技术人员名称', () => {
