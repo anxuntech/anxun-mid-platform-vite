@@ -587,6 +587,10 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const isMarketingSite = location.pathname === '/' || location.pathname === '/index.html'
+  const isLegacyGovDemoPath = location.pathname === '/gov/pingxiang-demo'
+    || location.pathname.startsWith('/gov/pingxiang-demo/')
+    || location.pathname === '/gov/ningjin-demo'
+    || location.pathname.startsWith('/gov/ningjin-demo/')
   const govProjectConfig = resolveGovProjectConfig(location.pathname)
   const isGovDemoPage = govProjectConfig?.mode === 'demo'
   const [session, setSession] = useState<AuthSession | null>(null)
@@ -1990,6 +1994,7 @@ function App() {
   ]
 
   if (isMarketingSite) return <MarketingSite />
+  if (isLegacyGovDemoPath) return <Navigate to="/gov/pingxiang" replace />
 
   if (routeState.page === 'pingxiangGov') {
     if (!govProjectConfig) {

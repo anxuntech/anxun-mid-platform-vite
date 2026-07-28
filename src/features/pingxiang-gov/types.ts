@@ -5,6 +5,7 @@ export type BaseDemoRecord = {
   project_id: PingxiangProjectId
   company_id: string
   demo_data: boolean
+  display_id?: string
 }
 
 export type PilotFeatureKey = 'hazard' | 'workPermit' | 'patrol' | 'training'

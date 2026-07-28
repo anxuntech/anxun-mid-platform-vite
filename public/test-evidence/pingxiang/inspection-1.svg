@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#e8f2fd"/>
+  <rect x="88" y="86" width="784" height="380" rx="22" fill="#f9fcff" stroke="#5f94c9" stroke-width="6"/>
+  <rect x="175" y="145" width="240" height="250" rx="12" fill="#bed6ed"/>
+  <path d="M215 205h160M215 265h160M215 325h160" stroke="#397cb9" stroke-width="17" stroke-linecap="round"/>
+  <circle cx="650" cy="265" r="106" fill="#dff0ff" stroke="#3184cf" stroke-width="9"/>
+  <path d="M602 265l34 36 73-88" fill="none" stroke="#1976c9" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="28" y="24" width="166" height="48" rx="24" fill="#1677d2"/>
+  <text x="111" y="56" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="24" fill="white">测试资料</text>
+  <text x="480" y="535" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="34" font-weight="700" fill="#244c72">巡检点位全景</text>
+</svg>

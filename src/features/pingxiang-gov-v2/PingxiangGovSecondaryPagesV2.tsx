@@ -39,6 +39,7 @@ import {
   businessBasePath,
   businessKindLabel,
   findBusinessRecord,
+  recordDisplayId,
   type BusinessKind,
 } from './RecordDetailsV2'
 import {
@@ -106,7 +107,7 @@ export function CompanyQuickDrawer({ state, companyId, fromHref }: { state: Ping
         { label: '联系人', value: item.company.contact_name }, { label: '联系电话', value: item.company.contact_phone },
         { label: '企业地址', value: item.company.address }, { label: '最近有效记录', value: item.latestUpdate },
       ]} /></DetailSection>
-      <DetailSection title="四项业务摘要"><div className="pxv21-summary-strip"><span><AlertTriangle />隐患<strong>{item.hazards.length}</strong>条<small>未闭环 {item.openHazards}</small></span><span><SearchCheck />巡检<strong>{item.patrols.length}</strong>条<small>发现问题 {item.abnormalPatrols}</small></span><span><TicketCheck />作业票<strong>{item.permits.length}</strong>张</span><span><UsersRound />培训<strong>{participants.length}</strong>人次<small>合格率 {item.trainingPassRate}%</small></span></div></DetailSection>
+      <DetailSection title="四项业务摘要"><div className="pxv21-summary-strip"><span><AlertTriangle />隐患<strong>{item.hazards.length}<em>条</em></strong><small>未闭环 {item.openHazards}</small></span><span><SearchCheck />巡检<strong>{item.patrols.length}<em>条</em></strong><small>发现问题 {item.abnormalPatrols}</small></span><span><TicketCheck />作业票<strong>{item.permits.length}<em>张</em></strong></span><span><UsersRound />培训<strong>{participants.length}<em>人次</em></strong><small>合格率 {item.trainingPassRate}%</small></span></div></DetailSection>
       <DetailSection title="最近运行记录" note="可继续打开对应记录详情"><div className="pxv21-recent-list">{recent.map(record => <Link key={`${record.kind}-${record.id}`} to={record.href}><StatusPill value={record.kind} /><span><strong>{record.title}</strong><small>{record.time} · {record.person}</small></span><StatusPill value={record.status} /></Link>)}</div></DetailSection>
       <DetailSection title="业务入口"><div className="pxv21-action-grid"><Link to={`/gov/pingxiang/hazards?company=${companyId}`}>隐患记录</Link><Link to={`/gov/pingxiang/inspections?company=${companyId}`}>巡检记录</Link><Link to={`/gov/pingxiang/work-permits?company=${companyId}`}>作业票记录</Link><Link to={`/gov/pingxiang/trainings?company=${companyId}`}>培训记录</Link></div></DetailSection>
     </WideDrawer>
@@ -151,7 +152,7 @@ export function CompaniesPageV2({ state }: { state: PingxiangDataState }) {
   return (
     <div className="pxv2-page-stack">
       <PageTitle eyebrow="试点企业运行档案" title="企业清单" description="按开通状态、运行状态和最近有效记录快速定位试点企业。" action={<span className="pxv2-count-chip">{available ? `共 ${rows.length} 家企业` : '暂无数据'}</span>} />
-      <SourceFilterTags labels={{ source: '来源', status: '运行状态', enabled: '开通状态', month: '统计月份' }} />
+      <SourceFilterTags labels={{ source: '来源入口', status: '运行状态', enabled: '开通状态', month: '统计月份' }} />
       <Panel title="查询条件" note="筛选、排序和分页状态会保留在当前地址">
         <div className="pxv2-filter-bar pxv21-filter-grid">
           <FilterInput label="企业名称" name="q" value={keyword} placeholder="输入企业名称" onChange={update} />
@@ -191,9 +192,7 @@ export function CompanyDetailPageV2({ state, companyId }: { state: PingxiangData
   const item = state.companyMap.get(companyId)
   const navigate = useNavigate()
   const location = useLocation()
-  const routeBase = location.pathname.startsWith('/gov/pingxiang-demo')
-    ? '/gov/pingxiang-demo'
-    : '/gov/pingxiang'
+  const routeBase = '/gov/pingxiang'
   if (!item) return <div className="pxv2-page-stack"><PageTitle eyebrow="企业运行档案" title="企业详情" description="查看企业四项功能运行记录。" /><EmptyVisual title="暂无企业数据" description="请返回企业清单重新选择。" action={<Link to="/gov/pingxiang/companies">返回企业清单</Link>} /></div>
   const participants = item.trainings.flatMap(record => record.participants || [])
   const metrics: VisualMetric[] = [
@@ -232,7 +231,6 @@ function BusinessListPage({ state, kind }: { state: PingxiangDataState; kind: Bu
   const q = params.get('q') || ''
   const person = params.get('person') || ''
   const level = params.get('level') || '全部'
-  const result = params.get('result') || '全部'
   const type = params.get('type') || '全部'
   const overdue = params.get('overdue') || '全部'
   const from = params.get('from') || ''
@@ -243,13 +241,13 @@ function BusinessListPage({ state, kind }: { state: PingxiangDataState; kind: Bu
   const rows = records.filter(record => {
     const date = recordDate(kind, record)
     const recordText = kind === 'hazard' ? `${(record as HazardRecord).title} ${(record as HazardRecord).description}` : kind === 'inspection' ? `${(record as PatrolRecord).checkpoint} ${(record as PatrolRecord).route_name}` : kind === 'permit' ? `${(record as WorkPermitRecord).permit_type} ${(record as WorkPermitRecord).location}` : `${(record as TrainingRecord).title} ${(record as TrainingRecord).course_name}`
-    const common = (company === '全部' || record.company_id === company) && (status === '全部' || record.status === status) && (!month || monthKey(date) === month) && dateInRange(date, from, to) && textIncludes(`${record.id} ${recordPerson(kind, record)} ${companyName(state.companies, record.company_id)} ${recordText}`, q || person)
+    const common = (company === '全部' || record.company_id === company) && (status === '全部' || record.status === status) && (!month || monthKey(date) === month) && dateInRange(date, from, to) && textIncludes(`${recordDisplayId(record)} ${record.id} ${recordPerson(kind, record)} ${companyName(state.companies, record.company_id)} ${recordText}`, q || person)
     if (!common) return false
     if (kind === 'hazard') {
       const item = record as HazardRecord
       return (level === '全部' || item.level === level) && (overdue === '全部' || (overdue === '是') === item.status.includes('超期'))
     }
-    if (kind === 'inspection') return result === '全部' || (result === '存在异常' ? isAbnormalPatrol(record.status) : record.status === result)
+    if (kind === 'inspection') return true
     if (kind === 'permit') return type === '全部' || (record as WorkPermitRecord).permit_type === type
     const training = record as TrainingRecord
     return type === '全部' || training.title === type || training.course_name === type
@@ -288,14 +286,13 @@ function BusinessListPage({ state, kind }: { state: PingxiangDataState; kind: Bu
 
   return <div className="pxv2-page-stack">
     <PageTitle eyebrow="四项功能运行记录" title={title} description={description} action={<span className="pxv2-count-chip">{available ? `共 ${rows.length} 条` : '暂无数据'}</span>} />
-    <SourceFilterTags labels={{ source: '来源', company: '企业', month: '统计月份', status: '状态', result: '检查结果' }} values={{ company: company === '全部' ? '' : companyLabel(company) }} />
+    <SourceFilterTags labels={{ source: '来源入口', company: '企业', month: '统计月份', status: kind === 'inspection' ? '巡检结果' : '状态' }} values={{ company: company === '全部' ? '' : companyLabel(company) }} />
     <SummaryMetrics metrics={metricRows.map(item => ({ ...item, value: available ? item.value : null }))} />
     <Panel title="筛选与检索" note="筛选条件、页码和快速查看状态均可通过地址恢复">
       <div className="pxv2-filter-bar pxv21-filter-grid">
         <FilterSelect label="企业" name="company" value={company} options={companyOptions} optionLabel={companyLabel} onChange={update} />
-        <FilterSelect label="当前状态" name="status" value={status} options={statusOptions} onChange={update} />
+        <FilterSelect label={kind === 'inspection' ? '巡检结果' : '当前状态'} name="status" value={status} options={statusOptions} onChange={update} />
         {kind === 'hazard' && <><FilterSelect label="隐患等级" name="level" value={level} options={['高', '中', '低']} onChange={update} /><FilterSelect label="是否逾期" name="overdue" value={overdue} options={['是', '否']} onChange={update} /></>}
-        {kind === 'inspection' && <FilterSelect label="是否发现问题" name="result" value={result} options={['正常', '存在异常', '漏检']} onChange={update} />}
         {(kind === 'permit' || kind === 'training') && <FilterSelect label={kind === 'permit' ? '作业类型' : '培训主题'} name="type" value={type} options={typeOptions} onChange={update} />}
         <FilterInput label={kind === 'hazard' ? '编号 / 关键词 / 人员' : '编号 / 企业 / 执行人'} name="q" value={q || person} placeholder="输入关键词" onChange={update} />
         <FilterInput label="开始日期" name="from" value={from} placeholder="开始日期" type="date" onChange={update} />
@@ -304,10 +301,10 @@ function BusinessListPage({ state, kind }: { state: PingxiangDataState; kind: Bu
       </div>
     </Panel>
     <Panel title={`${title}清单`} note="快速查看打开宽抽屉，完整详情进入独立页面">
-      {kind === 'hazard' && <DataTable headers={['记录编号', '企业', '隐患描述', '等级', '上报人', '上报时间', '责任人', '整改期限', '当前状态', '闭环时间', '操作']} minWidth={1480}>{!paged.length ? <EmptyRow columns={11} /> : (paged as HazardRecord[]).map(item => <tr key={item.id}><td>{item.id}</td><td>{companyLabel(item.company_id)}</td><td><span className="pxv21-ellipsis" title={item.description}>{item.title}</span></td><td><StatusPill value={`${item.level}风险`} /></td><td>{item.reporter || '未提供'}</td><td>{item.reported_at}</td><td>{item.responsible_person}</td><td>{item.deadline}</td><td><StatusPill value={item.status} /></td><td>{item.closed_at || '未闭环'}</td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr>)}</DataTable>}
-      {kind === 'inspection' && <DataTable headers={['记录编号', '企业', '巡检点位', '巡检人', '巡检时间', '检查项', '异常项', '结果', '关联隐患', '操作']} minWidth={1260}>{!paged.length ? <EmptyRow columns={10} /> : (paged as PatrolRecord[]).map(item => <tr key={item.id}><td>{item.id}</td><td>{companyLabel(item.company_id)}</td><td>{item.checkpoint}</td><td>{item.inspector}</td><td>{item.checked_at}</td><td>{item.item_count ?? '未提供'}</td><td>{item.abnormal_count ?? '未提供'}</td><td><StatusPill value={item.status} /></td><td>{item.linked_hazard_id ? <Link className="pxv2-table-link" to={`/gov/pingxiang/hazards/${item.linked_hazard_id}`}>{item.linked_hazard_id}</Link> : '无'}</td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr>)}</DataTable>}
-      {kind === 'permit' && <DataTable headers={['票号', '企业', '作业类型', '申请人', '作业地点', '计划时间', '审批状态', '监护人', '完工状态', '操作']} minWidth={1320}>{!paged.length ? <EmptyRow columns={10} /> : (paged as WorkPermitRecord[]).map(item => <tr key={item.id}><td>{item.id}</td><td>{companyLabel(item.company_id)}</td><td>{item.permit_type}</td><td>{item.applicant}</td><td>{item.location}</td><td>{item.planned_start}<br />{item.planned_end}</td><td><StatusPill value={item.status} /></td><td>{item.guardian || '未提供'}</td><td>{item.completed_at ? '已完工' : '未完工'}</td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr>)}</DataTable>}
-      {kind === 'training' && <DataTable headers={['培训编号', '企业', '主题', '方式', '开始时间', '参与人数', '完成人数', '考试人数', '合格人数', '状态', '操作']} minWidth={1380}>{!paged.length ? <EmptyRow columns={11} /> : (paged as TrainingRecord[]).map(item => { const participants = item.participants || []; const completed = participants.filter(personItem => personItem.completed); const examined = participants.filter(personItem => personItem.score !== null); return <tr key={item.id}><td>{item.id}</td><td>{companyLabel(item.company_id)}</td><td>{item.title || item.course_name}</td><td>{item.method || '未提供'}</td><td>{item.started_at || '未提供'}</td><td>{participants.length}</td><td>{completed.length}</td><td>{examined.length}</td><td>{examined.filter(personItem => personItem.passed).length}</td><td><StatusPill value={item.status} /></td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr> })}</DataTable>}
+      {kind === 'hazard' && <DataTable headers={['记录编号', '企业', '隐患描述', '等级', '上报人', '上报时间', '责任人', '整改期限', '当前状态', '闭环时间', '操作']} minWidth={1380}>{!paged.length ? <EmptyRow columns={11} /> : (paged as HazardRecord[]).map(item => <tr key={item.id}><td>{recordDisplayId(item)}</td><td>{companyLabel(item.company_id)}</td><td><span className="pxv21-ellipsis" title={item.description}>{item.title}</span></td><td><StatusPill value={`${item.level}风险`} /></td><td>{item.reporter || '未提供'}</td><td>{item.reported_at}</td><td>{item.responsible_person}</td><td>{item.deadline}</td><td><StatusPill value={item.status} /></td><td>{item.closed_at || '未闭环'}</td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr>)}</DataTable>}
+      {kind === 'inspection' && <DataTable headers={['记录编号', '企业', '巡检点位', '巡检人', '巡检时间', '检查项', '异常项', '结果', '关联隐患', '操作']} minWidth={1180}>{!paged.length ? <EmptyRow columns={10} /> : (paged as PatrolRecord[]).map(item => <tr key={item.id}><td>{recordDisplayId(item)}</td><td>{companyLabel(item.company_id)}</td><td>{item.checkpoint}</td><td>{item.inspector}</td><td>{item.checked_at}</td><td>{item.item_count ?? '未提供'}</td><td>{item.abnormal_count ?? '未提供'}</td><td><StatusPill value={item.status} /></td><td>{item.linked_hazard_id ? <Link className="pxv2-table-link" to={`/gov/pingxiang/hazards/${item.linked_hazard_id}`}>查看隐患</Link> : '无'}</td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr>)}</DataTable>}
+      {kind === 'permit' && <DataTable headers={['票号', '企业', '作业类型', '申请人', '作业地点', '计划时间', '审批状态', '监护人', '完工状态', '操作']} minWidth={1220}>{!paged.length ? <EmptyRow columns={10} /> : (paged as WorkPermitRecord[]).map(item => <tr key={item.id}><td>{recordDisplayId(item)}</td><td>{companyLabel(item.company_id)}</td><td>{item.permit_type}</td><td>{item.applicant}</td><td>{item.location}</td><td>{item.planned_start}<br />{item.planned_end}</td><td><StatusPill value={item.status} /></td><td>{item.guardian || '未提供'}</td><td>{item.completed_at ? '已完工' : '未完工'}</td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr>)}</DataTable>}
+      {kind === 'training' && <DataTable headers={['培训编号', '企业', '主题', '方式', '开始时间', '参与人数', '完成人数', '考试人数', '合格人数', '状态', '操作']} minWidth={1280}>{!paged.length ? <EmptyRow columns={11} /> : (paged as TrainingRecord[]).map(item => { const participants = item.participants || []; const completed = participants.filter(personItem => personItem.completed); const examined = participants.filter(personItem => personItem.score !== null); return <tr key={item.id}><td>{recordDisplayId(item)}</td><td>{companyLabel(item.company_id)}</td><td>{item.title || item.course_name}</td><td>{item.method || '未提供'}</td><td>{item.started_at || '未提供'}</td><td>{participants.length}</td><td>{completed.length}</td><td>{examined.length}</td><td>{examined.filter(personItem => personItem.passed).length}</td><td><StatusPill value={item.status} /></td><td><div className="pxv21-row-actions"><Link to={previewHref(item.id)} state={{ drawer: true }}>快速查看</Link><Link to={`${businessBasePath(kind)}/${item.id}?from=${encodeURIComponent(location.pathname + location.search)}`}>完整详情</Link></div></td></tr> })}</DataTable>}
       {!paged.length && <div className="pxv21-empty-action"><button type="button" onClick={reset}>清除筛选</button></div>}
       <Pager page={currentPage} totalPages={totalPages} total={rows.length} pageSize={pageSize} onPage={next => update('page', next, false)} />
     </Panel>

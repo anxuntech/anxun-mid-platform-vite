@@ -27,7 +27,10 @@ export const buildQueryHref = (pathname: string, search: string, updates: Record
 export function SourceFilterTags({ labels, values = {} }: { labels: Record<string, string>; values?: Record<string, string> }) {
   const location = useLocation()
   const params = new URLSearchParams(location.search)
-  const active = Object.entries(labels).filter(([key]) => params.get(key))
+  const active = Object.entries(labels).filter(([key]) => {
+    const value = params.get(key)
+    return value && !(key === 'source' && ['test', 'real'].includes(value))
+  })
   if (!active.length) return null
   return (
     <div className="pxv21-source-filters" aria-label="当前来源筛选">
@@ -77,14 +80,20 @@ export function EvidenceGallery({ files = [], emptyText = '未归集照片' }: {
       <div className="pxv21-evidence-grid">
         {files.map(file => (
           <button key={file.id} type="button" className={`pxv21-evidence-card tone-${file.tone || 'blue'}`} onClick={() => setActive(file)}>
-            <span><Camera size={28} /></span><strong>{file.name}</strong><small>{file.kind}</small><Maximize2 size={16} />
+            <span className="pxv21-evidence-preview">
+              {file.url ? <img src={file.url} alt={file.name} loading="lazy" /> : <Camera size={28} />}
+            </span>
+            <strong>{file.name}</strong><small>{file.kind}</small><Maximize2 size={16} />
           </button>
         ))}
       </div>
       {active && createPortal(
         <div className="pxv21-lightbox" role="dialog" aria-modal="true" aria-label={active.name} onClick={() => setActive(null)}>
           <button type="button" aria-label="关闭图片" onClick={() => setActive(null)}><X /></button>
-          <div className={`pxv21-lightbox-image tone-${active.tone || 'blue'}`} onClick={event => event.stopPropagation()}><Camera size={72} /><strong>{active.name}</strong><span>{active.kind} · 现场影像</span></div>
+          <div className={`pxv21-lightbox-image tone-${active.tone || 'blue'}`} onClick={event => event.stopPropagation()}>
+            {active.url ? <img src={active.url} alt={active.name} /> : <Camera size={72} />}
+            <strong>{active.name}</strong><span>{active.kind} · 现场影像</span>
+          </div>
         </div>, document.body,
       )}
     </>

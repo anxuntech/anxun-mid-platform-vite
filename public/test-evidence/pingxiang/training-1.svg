@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#eaf7ee"/>
+  <rect x="85" y="90" width="790" height="370" rx="22" fill="#fbfffc" stroke="#65a87a" stroke-width="6"/>
+  <rect x="190" y="135" width="420" height="190" rx="12" fill="#d7edde"/>
+  <path d="M240 190h320M240 245h250" stroke="#3f9560" stroke-width="17" stroke-linecap="round"/>
+  <circle cx="245" cy="385" r="42" fill="#5d7e68"/><circle cx="370" cy="385" r="42" fill="#5d7e68"/><circle cx="495" cy="385" r="42" fill="#5d7e68"/><circle cx="620" cy="385" r="42" fill="#5d7e68"/>
+  <rect x="28" y="24" width="166" height="48" rx="24" fill="#2f9758"/>
+  <text x="111" y="56" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="24" fill="white">测试资料</text>
+  <text x="480" y="535" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="34" font-weight="700" fill="#28563a">培训现场照片</text>
+</svg>

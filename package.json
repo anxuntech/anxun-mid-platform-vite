@@ -15,6 +15,7 @@
     "db:migrate": "node server/scripts/migrate-database.js",
     "db:rollback": "node server/scripts/rollback-database.js",
     "db:seed:pingxiang": "node server/scripts/seed-pingxiang-database.js",
+    "db:seed:pingxiang-presentation": "node server/scripts/seed-pingxiang-presentation-data.js",
     "db:import:jsonl": "node server/scripts/import-jsonl-to-mysql.js",
     "db:reconcile": "node server/scripts/reconcile-database.js",
     "db:repair:beijing-time": "node server/scripts/repair-beijing-time-offset.js",

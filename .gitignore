@@ -10,6 +10,7 @@ output/
 .data/*.jsonl
 .data/*.bak
 .data/*.bak-*
+.backups/
 .env
 .env.*
 !.env.example
