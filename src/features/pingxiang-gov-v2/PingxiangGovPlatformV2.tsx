@@ -3,9 +3,7 @@ import {
   Building2,
   CalendarClock,
   ChevronRight,
-  CircleCheckBig,
   ClipboardList,
-  Database,
   FileBarChart,
   FileCheck2,
   GraduationCap,
@@ -17,7 +15,7 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { usePingxiangDashboardData, type PingxiangDataMode } from '../pingxiang-gov/usePingxiangDashboardData'
 import type { AuthSession } from '../../auth'
@@ -90,21 +88,13 @@ export default function PingxiangGovPlatformV2({
     },
   })
   const [showDataHelp, setShowDataHelp] = useState(false)
+  const dataHelpRef = useRef<HTMLDivElement>(null)
   const available = isDataAvailable(state)
   const isTestPreview = state.data.sourceEnvironment === 'test'
   const canonicalPathname = location.pathname.replace(basePath, '/gov/pingxiang')
   const companyDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/(?:companies|company)\/([^/]+)\/?$/)
   const recordDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/(hazards|inspections|patrols|work-permits|trainings|training)\/([^/]+)\/?$/)
   const reportDetailMatch = canonicalPathname.match(/^\/gov\/pingxiang\/reports\/([^/]+)\/?$/)
-  const sourceLabel = state.mode === 'demo'
-    ? '内部演示数据'
-    : isTestPreview
-      ? '管理员受控测试数据'
-    : state.status === 'ready'
-      ? '企业实际记录及项目归集数据'
-      : state.status === 'error'
-        ? '归集暂不可用'
-        : '正在归集'
   const environmentLabel = state.mode === 'demo'
     ? '演示环境'
     : isTestPreview
@@ -119,6 +109,22 @@ export default function PingxiangGovPlatformV2({
     if (authSession?.role === 'admin') return
     setAdminSourceEnvironment('real')
   }, [authSession?.role])
+
+  useEffect(() => {
+    if (!showDataHelp) return
+    const closeOnOutsideClick = (event: globalThis.MouseEvent) => {
+      if (!dataHelpRef.current?.contains(event.target as Node)) setShowDataHelp(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowDataHelp(false)
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [showDataHelp])
 
   const changeAdminSourceEnvironment = (next: 'test' | 'real') => {
     if (authSession?.role !== 'admin') return
@@ -155,7 +161,7 @@ export default function PingxiangGovPlatformV2({
   else if (canonicalPathname.startsWith('/gov/pingxiang/reports')) page = <ReportsPageV2 state={state} />
   else if (canonicalPathname.startsWith('/gov/pingxiang/about')) page = <ProjectAboutPageV2 state={state} />
 
-  const keepProjectNavigation = (event: MouseEvent<HTMLDivElement>) => {
+  const keepProjectNavigation = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (basePath === '/gov/pingxiang') return
     const anchor = (event.target as HTMLElement).closest('a')
     const href = anchor?.getAttribute('href') || ''
@@ -174,9 +180,7 @@ export default function PingxiangGovPlatformV2({
         </Link>
         <div className="pxv2-header-facts">
           <div><CalendarClock size={16} /><span>最近有效数据</span><strong>{available ? latestRecordTime(state.data) : '暂无数据'}</strong></div>
-          <div><Database size={16} /><span>数据来源</span><strong>{sourceLabel}</strong></div>
           <div><Building2 size={16} /><span>纳入企业</span><strong>{available ? `${state.companies.length} 家` : '暂无数据'}</strong></div>
-          <div><CircleCheckBig size={16} /><span>运行状态</span><strong>{environmentLabel}</strong></div>
         </div>
         <div className="pxv2-header-actions">
           {authSession && <span className="pxv2-auth-user"><UserRound size={16} /><span>{authSession.organizationName}</span></span>}
@@ -187,9 +191,11 @@ export default function PingxiangGovPlatformV2({
             </div>
           )}
           <span className={`pxv2-env-badge ${state.mode === 'demo' ? 'demo' : isTestPreview ? 'test' : state.status === 'error' ? 'error' : 'real'}`}><ShieldCheck size={15} />{environmentLabel}</span>
-          <button className="pxv2-data-help" type="button" onClick={() => setShowDataHelp(value => !value)} aria-expanded={showDataHelp}><HelpCircle size={18} /><span>数据说明</span></button>
+          <div className="pxv2-data-help-wrap" ref={dataHelpRef}>
+            <button className="pxv2-data-help" type="button" aria-label="数据说明" onClick={() => setShowDataHelp(value => !value)} aria-expanded={showDataHelp}><HelpCircle size={18} /><span>数据说明</span></button>
+            {showDataHelp && <div className="pxv2-data-popover"><strong>数据口径说明</strong><p>{dataSourceText(state)}</p><p>页面仅展示已成功归集的数据；缺失或归集失败时统一显示“暂无数据”。</p></div>}
+          </div>
           {authSession && onLogout && <button className="pxv2-data-help" type="button" onClick={() => onLogout()}><LogOut size={17} /><span>退出登录</span></button>}
-          {showDataHelp && <div className="pxv2-data-popover"><strong>数据口径说明</strong><p>{dataSourceText(state)}</p><p>页面仅展示已成功归集的数据；缺失或归集失败时统一显示“暂无数据”。</p></div>}
         </div>
       </header>
 
@@ -204,7 +210,7 @@ export default function PingxiangGovPlatformV2({
       </aside>
 
       <main className="pxv2-main">
-        <EnvironmentNotice environment={state.mode === 'demo' ? 'demo' : isTestPreview ? 'test' : 'real'} status={state.status} message={dataSourceText(state)} />
+        {state.status === 'error' && <EnvironmentNotice environment={state.mode === 'demo' ? 'demo' : isTestPreview ? 'test' : 'real'} status={state.status} message={dataSourceText(state)} />}
         {page}
       </main>
 

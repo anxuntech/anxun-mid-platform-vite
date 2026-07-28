@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#eef8f1"/>
+  <rect x="130" y="75" width="700" height="420" rx="20" fill="white" stroke="#6da77f" stroke-width="6"/>
+  <path d="M210 155h420M210 220h495M210 285h450M210 350h495" stroke="#9cb5a5" stroke-width="16" stroke-linecap="round"/>
+  <path d="M670 130l92 35v105c0 72-42 118-92 144-50-26-92-72-92-144V165z" fill="#39a662"/>
+  <path d="M625 260l31 32 61-76" fill="none" stroke="white" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="28" y="24" width="166" height="48" rx="24" fill="#2f9758"/>
+  <text x="111" y="56" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="24" fill="white">测试资料</text>
+  <text x="480" y="552" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="34" font-weight="700" fill="#28563a">签到与考试记录</text>
+</svg>

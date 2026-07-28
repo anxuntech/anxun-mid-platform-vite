@@ -10,6 +10,8 @@ import { DetailPageShell, DetailSection, EvidenceGallery, InfoGrid, Pager, Proce
 export type BusinessKind = 'hazard' | 'inspection' | 'permit' | 'training'
 export type BusinessRecord = HazardRecord | PatrolRecord | WorkPermitRecord | TrainingRecord
 
+export const recordDisplayId = (record: BusinessRecord) => record.display_id || record.id
+
 export const businessBasePath = (kind: BusinessKind) => kind === 'hazard'
   ? '/gov/pingxiang/hazards'
   : kind === 'inspection'
@@ -32,7 +34,7 @@ const recordTitle = (kind: BusinessKind, record: BusinessRecord) => kind === 'ha
   : kind === 'inspection'
     ? (record as PatrolRecord).checkpoint
     : kind === 'permit'
-      ? `${(record as WorkPermitRecord).permit_type} · ${(record as WorkPermitRecord).id}`
+      ? `${(record as WorkPermitRecord).permit_type} · ${recordDisplayId(record)}`
       : (record as TrainingRecord).title || (record as TrainingRecord).course_name
 
 const recordStatus = (record: BusinessRecord) => record.status
@@ -49,7 +51,8 @@ function HazardContent({ record }: { record: HazardRecord }) {
     <>
       <DetailSection title="关键结论"><div className="pxv21-conclusion"><AlertTriangle size={24} /><div><strong>{record.title}</strong><p>{record.description || '未提供隐患描述'}</p></div></div></DetailSection>
       <DetailSection title="基础信息"><InfoGrid items={[
-        { label: '记录编号', value: record.id }, { label: '隐患等级', value: <StatusPill value={`${record.level}风险`} /> },
+        { label: '记录编号', value: recordDisplayId(record) }, { label: '系统记录标识', value: record.id },
+        { label: '隐患等级', value: <StatusPill value={`${record.level}风险`} /> },
         { label: '上报人', value: record.reporter }, { label: '上报时间', value: formatDateTime(record.reported_at) },
         { label: '整改责任人', value: record.responsible_person }, { label: '整改期限', value: formatDateTime(record.deadline) },
         { label: '整改内容', value: record.rectification_content }, { label: '复查意见', value: record.review_opinion },
@@ -67,7 +70,8 @@ function InspectionContent({ record }: { record: PatrolRecord }) {
     <>
       <DetailSection title="检查结论"><div className={`pxv21-conclusion ${record.abnormal_count ? 'warning' : 'success'}`}><ShieldCheck size={24} /><div><strong>{record.result_summary || record.status}</strong><p>本次共检查 {record.item_count ?? record.items?.length ?? 0} 项，异常 {record.abnormal_count ?? 0} 项。</p></div></div></DetailSection>
       <DetailSection title="巡检基础信息"><InfoGrid items={[
-        { label: '记录编号', value: record.id }, { label: '巡检点位', value: record.checkpoint },
+        { label: '记录编号', value: recordDisplayId(record) }, { label: '系统记录标识', value: record.id },
+        { label: '巡检点位', value: record.checkpoint },
         { label: '巡检路线', value: record.route_name }, { label: '巡检人', value: record.inspector },
         { label: '巡检时间', value: formatDateTime(record.checked_at) }, { label: '二维码点位', value: <span className="pxv21-inline-icon"><QrCode size={16} />{record.qr_code || '未提供'}</span> },
       ]} /></DetailSection>
@@ -83,7 +87,8 @@ function PermitContent({ record }: { record: WorkPermitRecord }) {
   return (
     <>
       <DetailSection title="作业关键信息"><InfoGrid items={[
-        { label: '作业票号', value: record.id }, { label: '作业类型', value: record.permit_type },
+        { label: '作业票号', value: recordDisplayId(record) }, { label: '系统记录标识', value: record.id },
+        { label: '作业类型', value: record.permit_type },
         { label: '申请人', value: record.applicant }, { label: '监护人', value: record.guardian },
         { label: '作业地点', value: record.location }, { label: '计划时间', value: `${formatDateTime(record.planned_start)} 至 ${formatDateTime(record.planned_end)}` },
       ]} /></DetailSection>
@@ -106,9 +111,10 @@ function TrainingContent({ record, compact = false }: { record: TrainingRecord; 
   const passed = examined.filter(item => item.passed).length
   return (
     <>
-      <DetailSection title="培训结论"><div className="pxv21-summary-strip"><span><UsersRound />参与<strong>{participants.length}</strong>人</span><span><BadgeCheck />完成<strong>{completed}</strong>人</span><span><UserRound />考试<strong>{examined.length}</strong>人</span><span><CheckCircle2 />合格<strong>{passed}</strong>人</span></div></DetailSection>
+      <DetailSection title="培训结论"><div className="pxv21-summary-strip"><span><UsersRound />参与<strong>{participants.length}<em>人</em></strong></span><span><BadgeCheck />完成<strong>{completed}<em>人</em></strong></span><span><UserRound />考试<strong>{examined.length}<em>人</em></strong></span><span><CheckCircle2 />合格<strong>{passed}<em>人</em></strong></span></div></DetailSection>
       <DetailSection title="培训基础信息"><InfoGrid items={[
-        { label: '培训编号', value: record.id }, { label: '培训主题', value: record.title || record.course_name },
+        { label: '培训编号', value: recordDisplayId(record) }, { label: '系统记录标识', value: record.id },
+        { label: '培训主题', value: record.title || record.course_name },
         { label: '培训方式', value: record.method }, { label: '开始时间', value: formatDateTime(record.started_at) },
         { label: '组织人', value: record.person_name }, { label: '考试合格线', value: `${record.exam_pass_score ?? 70} 分` },
       ]} /></DetailSection>

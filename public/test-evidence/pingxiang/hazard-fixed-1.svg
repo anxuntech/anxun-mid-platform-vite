@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#e9f6ee"/>
+  <rect x="80" y="100" width="800" height="345" rx="18" fill="#f8fffa" stroke="#69a77e" stroke-width="6"/>
+  <path d="M110 365h660" stroke="#35a461" stroke-width="30" stroke-dasharray="72 24"/>
+  <rect x="640" y="165" width="150" height="150" rx="12" fill="#688070"/>
+  <circle cx="830" cy="155" r="55" fill="#38a966"/>
+  <path d="M801 155l19 20 42-48" fill="none" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="28" y="24" width="166" height="48" rx="24" fill="#278d52"/>
+  <text x="111" y="56" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="24" fill="white">测试资料</text>
+  <text x="480" y="525" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="34" font-weight="700" fill="#245139">整改后现场</text>
+</svg>

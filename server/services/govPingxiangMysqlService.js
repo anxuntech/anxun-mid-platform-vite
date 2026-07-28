@@ -12,7 +12,12 @@ const mapAttachment = row => ({
   name: row.file_name || '现场附件',
   url: row.file_url,
   content_type: row.content_type || '',
-  kind: /整改/.test(row.file_name || '') ? '整改照片' : '现场照片',
+  kind: /整改/.test(row.file_name || '')
+    ? '整改照片'
+    : /附件|交底|签到|考试|记录/.test(row.file_name || '')
+      ? '附件'
+      : '现场照片',
+  tone: /整改|确认|考试/.test(row.file_name || '') ? 'green' : /隐患|问题/.test(row.file_name || '') ? 'orange' : 'blue',
 })
 
 const mapTimelineNode = (id, title, person, time, note, status = 'done') => ({
@@ -26,6 +31,7 @@ const mapTimelineNode = (id, title, person, time, note, status = 'done') => ({
 
 const mapRecord = (row, attachmentsByRecord) => ({
   id: row.record_id,
+  display_id: row.source_record_id || row.record_id,
   project_id: row.project_id,
   company_id: row.company_id,
   company_name: row.company_name,
@@ -39,6 +45,17 @@ const mapRecord = (row, attachmentsByRecord) => ({
   evidence_files: attachmentsByRecord.get(row.record_id) || [],
   demo_data: false,
 })
+
+const detailFor = row => {
+  const payload = row.raw_payload_json
+  if (!payload) return {}
+  try {
+    const value = typeof payload === 'string' ? JSON.parse(payload) : payload
+    return value?.detail && typeof value.detail === 'object' ? value.detail : {}
+  } catch {
+    return {}
+  }
+}
 
 const attachmentMapFor = rows => {
   const result = new Map()
@@ -84,7 +101,7 @@ export const buildPingxiangMysqlDashboardData = async ({
     [projectId, environment],
   )
   const [records] = await pool.execute(
-    `SELECT b.*, c.company_name,
+    `SELECT b.*, c.company_name, e.payload_json AS raw_payload_json,
             COALESCE(h.reporter_name, i.inspector_name, w.applicant_name, t.participant_name, '') AS actor_name,
             h.description AS hazard_description, h.hazard_level, h.reporter_name,
             h.reported_at, h.assignee_name, h.rectification_deadline,
@@ -98,6 +115,7 @@ export const buildPingxiangMysqlDashboardData = async ({
             t.exam_score, t.passed
        FROM business_records b
        JOIN companies c ON c.company_id = b.company_id
+       JOIN webhook_events e ON e.event_id = b.raw_event_id
        LEFT JOIN hazard_records h ON h.record_id = b.record_id
        LEFT JOIN inspection_records i ON i.record_id = b.record_id
        LEFT JOIN work_permit_records w ON w.record_id = b.record_id
@@ -128,6 +146,7 @@ export const buildPingxiangMysqlDashboardData = async ({
   const attachmentsByRecord = attachmentMapFor(attachmentRows)
   const hazards = records.filter(row => row.record_type === 'hazard').map(row => {
     const base = mapRecord(row, attachmentsByRecord)
+    const detail = detailFor(row)
     const timeline = [
       mapTimelineNode(
         `${row.record_id}-reported`,
@@ -166,13 +185,18 @@ export const buildPingxiangMysqlDashboardData = async ({
       rectification_deadline: row.rectification_deadline || '',
       rectified_at: row.rectified_at || '',
       closed_at: row.closed_at || '',
+      rectification_content: detail.rectification_content || '',
+      reviewer: detail.reviewer || '',
+      review_opinion: detail.review_opinion || '',
+      linked_patrol_id: detail.linked_patrol_id || '',
       photos: base.evidence_files.filter(item => item.kind === '现场照片'),
       rectification_photos: base.evidence_files.filter(item => item.kind === '整改照片'),
-      timeline,
+      timeline: Array.isArray(detail.timeline) ? detail.timeline : timeline,
     }
   })
   const patrols = records.filter(row => row.record_type === 'inspection').map(row => {
     const base = mapRecord(row, attachmentsByRecord)
+    const detail = detailFor(row)
     const patrolStatus = /漏检/.test(row.business_status || row.inspection_result || '')
       ? '漏检'
       : Number(row.abnormal_count || 0) > 0 ||
@@ -192,7 +216,11 @@ export const buildPingxiangMysqlDashboardData = async ({
       result_summary: row.inspection_result || row.summary || '',
       linked_hazard_id: row.linked_hazard_id || '',
       photos: base.evidence_files,
-      timeline: [
+      items: Array.isArray(detail.items) ? detail.items : [],
+      qr_code: detail.qr_code || '',
+      planned_count: Number(detail.planned_count || 0),
+      completed_count: Number(detail.completed_count || 0),
+      timeline: Array.isArray(detail.timeline) ? detail.timeline : [
         mapTimelineNode(
           `${row.record_id}-checked`,
           '巡检提交',
@@ -205,6 +233,7 @@ export const buildPingxiangMysqlDashboardData = async ({
   })
   const permits = records.filter(row => row.record_type === 'work_permit').map(row => {
     const base = mapRecord(row, attachmentsByRecord)
+    const detail = detailFor(row)
     const timeline = [
       mapTimelineNode(
         `${row.record_id}-submitted`,
@@ -234,11 +263,14 @@ export const buildPingxiangMysqlDashboardData = async ({
       guardian: row.guardian_name || '',
       completed_at: row.permit_completed_at || '',
       attachments: base.evidence_files,
-      timeline,
+      approvals: Array.isArray(detail.approvals) ? detail.approvals : [],
+      measures: Array.isArray(detail.measures) ? detail.measures : [],
+      timeline: Array.isArray(detail.timeline) ? detail.timeline : timeline,
     }
   })
   const trainings = records.filter(row => row.record_type === 'training').map(row => {
     const base = mapRecord(row, attachmentsByRecord)
+    const detail = detailFor(row)
     const score = row.exam_score === null ? null : Number(row.exam_score)
     return {
       ...base,
@@ -250,7 +282,7 @@ export const buildPingxiangMysqlDashboardData = async ({
       completed_at: row.training_ended_at || row.occurred_at,
       exam_result: row.passed === null ? '未考试' : row.passed ? '合格' : '不合格',
       score: score ?? 0,
-      participants: [{
+      participants: Array.isArray(detail.participants) ? detail.participants : [{
         id: `${row.record_id}-participant`,
         name: row.participant_name || '',
         joined_at: row.training_started_at || row.occurred_at,
@@ -258,8 +290,9 @@ export const buildPingxiangMysqlDashboardData = async ({
         score,
         passed: row.passed === null ? null : Boolean(row.passed),
       }],
+      exam_pass_score: Number(detail.exam_pass_score || 70),
       attachments: base.evidence_files,
-      timeline: [
+      timeline: Array.isArray(detail.timeline) ? detail.timeline : [
         mapTimelineNode(
           `${row.record_id}-training`,
           '培训考试记录',

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#f2edfb"/>
+  <rect x="95" y="95" width="770" height="365" rx="20" fill="#fcfaff" stroke="#8268b8" stroke-width="6"/>
+  <path d="M160 365h640" stroke="#d28c2b" stroke-width="25" stroke-dasharray="42 20"/>
+  <path d="M290 345l95-180 95 180z" fill="#f2b94b" stroke="#8b6020" stroke-width="8"/>
+  <rect x="575" y="170" width="150" height="170" rx="10" fill="#dcd0ef"/>
+  <path d="M610 215h80M610 265h80M610 315h55" stroke="#7357aa" stroke-width="14" stroke-linecap="round"/>
+  <rect x="28" y="24" width="166" height="48" rx="24" fill="#7453b1"/>
+  <text x="111" y="56" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="24" fill="white">测试资料</text>
+  <text x="480" y="535" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="34" font-weight="700" fill="#493773">作业区域照片</text>
+</svg>

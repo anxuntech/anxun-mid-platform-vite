@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#e9eef4"/>
+  <rect y="405" width="960" height="195" fill="#cdd6df"/>
+  <rect x="65" y="95" width="830" height="330" rx="18" fill="#f8fafc" stroke="#8392a5" stroke-width="5"/>
+  <path d="M90 360h620" stroke="#e05245" stroke-width="34" stroke-dasharray="76 28"/>
+  <rect x="620" y="175" width="190" height="145" rx="9" fill="#63758a"/>
+  <path d="M690 190v115M745 190v115" stroke="#f5c45a" stroke-width="13"/>
+  <circle cx="845" cy="145" r="54" fill="#fff3d9" stroke="#df9f22" stroke-width="8"/>
+  <path d="M845 108v50m0 24v5" stroke="#b36b00" stroke-width="13" stroke-linecap="round"/>
+  <rect x="28" y="24" width="166" height="48" rx="24" fill="#d4493f"/>
+  <text x="111" y="56" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="24" fill="white">测试资料</text>
+  <text x="480" y="505" text-anchor="middle" font-family="Microsoft YaHei,sans-serif" font-size="34" font-weight="700" fill="#293b50">隐患现场全景</text>
+</svg>
